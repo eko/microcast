@@ -31,6 +31,7 @@ final class Router {
 	private let history: ListenerHistory
 	private let challenges: ACMEChallengeStore
 	private let nowPlaying: NowPlayingMonitor?
+	private let screen: ScreenSource?
 	private let live: Bool
 	private let lastLive: Date?
 	private let hlsListeners = ListenerTracker()
@@ -52,6 +53,7 @@ final class Router {
 		history: ListenerHistory,
 		challenges: ACMEChallengeStore,
 		nowPlaying: NowPlayingMonitor? = nil,
+		screen: ScreenSource? = nil,
 		live: Bool = true,
 		lastLive: Date? = nil,
 		name: String,
@@ -68,6 +70,7 @@ final class Router {
 		self.history = history
 		self.challenges = challenges
 		self.nowPlaying = nowPlaying
+		self.screen = screen
 		self.live = live
 		self.lastLive = lastLive
 		self.name = name
@@ -139,6 +142,12 @@ final class Router {
 			guard live else { break }
 			guard let flac else { return .text(404, "FLAC is disabled") }
 			return .stream(flac.broadcaster.subscribe(), type: "audio/flac", headers: icyHeaders)
+		case "/screen.mjpeg":
+			guard live, let screen else { break }
+			return .stream(screen.broadcaster.subscribe(), type: MJPEG.contentType, headers: ["Connection": "close"])
+		case "/screen.jpg":
+			guard live, let frame = screen?.latestFrame() else { break }
+			return .data(frame, type: "image/jpeg", cache: "no-store")
 		case "/stream.pcm":
 			guard live else { break }
 			guard let pcm else { return .text(404, "PCM is disabled") }
@@ -277,6 +286,7 @@ final class Router {
 			"mp3": !mp3.isEmpty,
 			"flac": flac != nil,
 			"pcm": pcm != nil,
+			"screen": screen != nil,
 			"partDurationMs": Int((partDuration * 1000).rounded()),
 			"protected": !password.isEmpty,
 		]

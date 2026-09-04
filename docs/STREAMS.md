@@ -18,13 +18,15 @@ any user name, e.g. `http://x:secret@host:8080/stream.flac`.
 | `/stream-{bitrate}.aac` | `audio/aac` | ADTS frames, `icy-name`, `icy-br` |
 | `/stream-{bitrate}.mp3` | `audio/mpeg` | needs `lame`; ID3v2 `TIT2` first, `icy-name` |
 | `/stream.flac` | `audio/flac` | `fLaC` + STREAMINFO + VORBIS_COMMENT `TITLE`, then frames |
+| `/screen.mjpeg` | `multipart/x-mixed-replace` | the selected screen region as a stream of JPEG frames; plays in an `<img>` |
+| `/screen.jpg` | `image/jpeg` | the latest screen frame (poster/fallback) |
 | `/stream.pcm` | `application/octet-stream` | interleaved s16le, 1.5 Mbit/s; `X-Sample-Rate`, `X-Channels`, `X-Bits-Per-Sample` |
 | `/hls.min.js` | JavaScript | bundled hls.js |
 | `/icon.png`, `/apple-touch-icon.png`, `/favicon.ico` | `image/png` | the app icon, also used as lock-screen artwork |
 | `/manifest.webmanifest` | web app manifest | lets phones add the page to the home screen under the stream's name |
 
 `{bitrate}` is any value from the list in Settings → Stream (64, 128, 256 and 320 kbps by default; 64–320, up to
-eight). Formats switched off there answer 404. While the app is online but off air, streams and playlists answer
+eight). Formats switched off there answer 404, and the screen endpoints answer 404 when screen streaming is off. While the app is online but off air, streams and playlists answer
 503 with `Retry-After`, and the page shows its off-air state. All responses carry `Access-Control-Allow-Origin: *`. Streams are sent with `Connection: close` and no
 `Content-Length`, Icecast style.
 

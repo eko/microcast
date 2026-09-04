@@ -29,6 +29,8 @@ connection that can carry 1.5 Mbit/s, and hi-fi players get plain AAC, MP3 or lo
 - **A player page** served by the app: hls.js, quality selector, live latency and level, an ultra-low-latency
   PCM mode (~0.2 s, uncompressed), direct links, a listener graph, the track playing in Music or Spotify with
   its artwork, light and dark, lock-screen controls and Add-to-Home-Screen on phones.
+- **Screen streaming**: capture a display or a region of it and show it on the page as low-latency MJPEG, with
+  cinema mode and full screen. No audio sync, it's a visual companion.
 - **Jingles**: drop audio files in a folder; at each track change in Music or Spotify (or on a button), one plays
   over the music, which fades to a set level and comes back, radio style.
 - **Always there**: the address stays online between streams with an off-air page that starts playing by itself

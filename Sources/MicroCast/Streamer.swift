@@ -18,6 +18,17 @@ enum Settings {
 	static var keepOnline: Bool { isEnabled("keepOnline") }
 	static var nowPlayingEnabled: Bool { isEnabled("nowPlayingEnabled") }
 	static var jinglesEnabled: Bool { UserDefaults.standard.bool(forKey: "jinglesEnabled") }
+	static var screenEnabled: Bool { UserDefaults.standard.bool(forKey: "screenEnabled") }
+	static var screenDisplayID: CGDirectDisplayID { CGDirectDisplayID(UserDefaults.standard.integer(forKey: "screenDisplayID")) }
+	static var screenFPS: Int { let v = UserDefaults.standard.integer(forKey: "screenFPS"); return v > 0 ? v : 12 }
+	static var screenMaxWidth: Int { let v = UserDefaults.standard.integer(forKey: "screenMaxWidth"); return v > 0 ? v : 1280 }
+	static var screenQuality: Double { let v = UserDefaults.standard.double(forKey: "screenQuality"); return v > 0 ? v : 0.7 }
+	static var screenRegion: ScreenRegion {
+		ScreenRegion(
+			x: UserDefaults.standard.integer(forKey: "screenX"), y: UserDefaults.standard.integer(forKey: "screenY"),
+			width: UserDefaults.standard.integer(forKey: "screenWidth"), height: UserDefaults.standard.integer(forKey: "screenHeight")
+		)
+	}
 	/// 0 means the music stays at full level under the jingle.
 	static var jingleDuckDecibels: Double {
 		guard let value = UserDefaults.standard.object(forKey: "jingleDuckDecibels") as? Double else { return -12 }
@@ -178,6 +189,8 @@ final class Streamer {
 	private let routes = RouterHolder()
 	private let nowPlayingMonitor = NowPlayingMonitor()
 	private let mixer = AudioMixer()
+	private var screenCapture: ScreenCapture?
+	private(set) var screenStatus = "" 
 	private var lastTrackID: String?
 	private var lastJingle: URL?
 	/// The track a jingle was already fired for (before its end), and the pending precise timer.
@@ -203,6 +216,8 @@ final class Streamer {
 		let status = AVCaptureDevice.authorizationStatus(for: .audio)
 		return status == .denied || status == .restricted
 	}
+
+	nonisolated var permissionScreenDenied: Bool { !ScreenPermission.granted }
 
 	init() {
 		deviceName = Self.describeSource()
@@ -533,15 +548,18 @@ final class Streamer {
 			await goOnline()
 			guard isOnline else { throw HTTPServerError.invalidPort }
 		}
+		let screen = makeScreenCapture()
+		screenCapture = screen as? ScreenCapture
 		routes.current = Router(
 			hls: hls, aac: aac, mp3: mp3, flac: flac, pcm: pcm, bitrates: bitrates, history: history, challenges: challenges,
-			nowPlaying: nowPlayingMonitor, name: name, partDuration: partDuration,
+			nowPlaying: nowPlayingMonitor, screen: screen, name: name, partDuration: partDuration,
 			password: Settings.password, publicURL: publicURL
 		)
 		_ = port
 		nowPlayingMonitor.interval = Settings.jinglesEnabled ? 1 : 3
 		nowPlayingMonitor.start()
 		startRecording(name: name)
+		startScreenCapture()
 
 		Task.detached { capture.start() }
 		isRunning = true
@@ -664,6 +682,34 @@ final class Streamer {
 		let lastLine = output.split(separator: "\n").last.map(String.init) ?? ""
 		tunnelStatus = "Tunnel exited (code \(status)). \(lastLine)"
 		logger.error("tunnel exited \(status): \(lastLine)")
+	}
+
+	/// Screen capture is optional and independent of the audio source; served as MJPEG at /screen.mjpeg.
+	private var demoScreen: DemoScreenSource?
+
+	private func makeScreenCapture() -> ScreenSource? {
+		if UserDefaults.standard.bool(forKey: "screenDemo") {
+			let demo = DemoScreenSource(); demo.start(); demoScreen = demo; return demo
+		}
+		guard Settings.screenEnabled else { return nil }
+		guard ScreenPermission.request() else {
+			screenStatus = "Screen Recording denied (System Settings → Privacy & Security → Screen Recording)"
+			return nil
+		}
+		return ScreenCapture(
+			displayID: Settings.screenDisplayID, region: Settings.screenRegion,
+			fps: Settings.screenFPS, maxWidth: Settings.screenMaxWidth, quality: Settings.screenQuality
+		)
+	}
+
+	private func startScreenCapture() {
+		guard let capture = screenCapture else { return }
+		Task { @MainActor in
+			do { try await capture.start() } catch {
+				screenStatus = "Screen capture failed: \(error.localizedDescription)"
+				logger.error("screen: \(error.localizedDescription)")
+			}
+		}
 	}
 
 	private func startRecording(name: String) {

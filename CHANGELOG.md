@@ -19,5 +19,6 @@ First public release. 64 unit and integration tests; CI builds and releases the 
 - Bonjour advertisement, listener count and history graph (panel and page), launch at login, auto-start.
 - Off-air page: the address stays online between streams and the page starts playing by itself when you go live.
 - Now playing: the track from Music or Spotify, with artwork, on the page, the phone lock screen and the panel.
+- Screen streaming: capture a display or region with ScreenCaptureKit and serve it as MJPEG on the page, with cinema mode and full screen.
 - Jingles: a folder of audio files played over the ducked music at track changes or on demand, with adjustable duck level, volume and a lead time so the jingle starts before the end of the track.
 - DMG packaging, optional Developer ID signing and notarization.

@@ -55,6 +55,10 @@ the next one is audible before `current track` changes; the lead time counts fro
 so add the crossfade duration to it (a 5 s crossfade and a 2 s lead means 7 s). Tracks that end early get their
 jingle at the change instead.
 
+**The screen doesn't show on the page** — enable it in Settings → Screen and allow Screen Recording (System
+Settings → Privacy & Security → Screen Recording → MicroCast). The `<img>` streams MJPEG, which is bandwidth
+heavy: over a tunnel, lower the frame rate, max width and quality. It carries no audio and is not synced.
+
 **No jingle plays** — jingles need the Now Playing detection (Music or Spotify playing and selected as the
 source), files in the folder shown in Settings → Jingles, and a track change; "Play one now" tests the chain
 while live. A jingle already playing is not interrupted by the next change.

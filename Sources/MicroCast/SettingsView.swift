@@ -4,7 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
 	enum Tab: String, CaseIterable, Identifiable {
-		case general, stream, jingles, internet, recording, about
+		case general, stream, screen, jingles, internet, recording, about
 
 		var id: String { rawValue }
 
@@ -12,6 +12,7 @@ struct SettingsView: View {
 			switch self {
 			case .general: "General"
 			case .stream: "Stream"
+			case .screen: "Screen"
 			case .jingles: "Jingles"
 			case .internet: "Internet"
 			case .recording: "Recording"
@@ -23,6 +24,7 @@ struct SettingsView: View {
 			switch self {
 			case .general: "gearshape"
 			case .stream: "waveform"
+			case .screen: "rectangle.inset.filled.and.person.filled"
 			case .jingles: "music.quarternote.3"
 			case .internet: "globe"
 			case .recording: "record.circle"
@@ -60,6 +62,7 @@ struct SettingsView: View {
 		switch tab {
 		case .general: GeneralSettings(streamer: streamer)
 		case .stream: StreamSettings()
+		case .screen: ScreenSettings(streamer: streamer)
 		case .jingles: JingleSettings(streamer: streamer)
 		case .internet: InternetSettings()
 		case .recording: RecordingSettings()
@@ -400,6 +403,94 @@ struct InternetSettings: View {
 		case .duckdns: httpsEnabled
 			? "Free, fixed name from duckdns.org, kept pointed at this Mac. Forward the router port above to the local HTTPS port; the certificate is obtained and renewed through DuckDNS's DNS challenge, no port 80 needed. For your own hostname, add a CNAME to \(duckSubdomain.isEmpty ? "yourname" : duckSubdomain).duckdns.org and a CNAME from _acme-challenge.<host> to _acme-challenge.\(duckSubdomain.isEmpty ? "yourname" : duckSubdomain).duckdns.org."
 			: "Free, fixed name from duckdns.org, kept pointed at this Mac. Forward the router port above to the local HTTP port; listeners get plain http://."
+		}
+	}
+}
+
+struct ScreenSettings: View {
+	var streamer: Streamer
+	@AppStorage("screenEnabled") private var enabled = false
+	@AppStorage("screenDisplayID") private var displayID = 0
+	@AppStorage("screenFPS") private var fps = 12
+	@AppStorage("screenMaxWidth") private var maxWidth = 1280
+	@AppStorage("screenQuality") private var quality = 0.7
+	@AppStorage("screenX") private var x = 0
+	@AppStorage("screenY") private var y = 0
+	@AppStorage("screenWidth") private var width = 0
+	@AppStorage("screenHeight") private var height = 0
+	@State private var displays: [ScreenDisplay] = []
+	@State private var picker = ScreenRegionPicker()
+
+	private var wholeDisplay: Bool { width <= 0 || height <= 0 }
+
+	var body: some View {
+		Form {
+			Section {
+				Toggle("Stream a screen region to the page", isOn: $enabled)
+				Picker("Display", selection: $displayID) {
+					ForEach(displays) { display in
+						Text("\(display.name) — \(display.width)×\(display.height)").tag(Int(display.id))
+					}
+				}
+				LabeledContent("Region") {
+					HStack {
+						Text(wholeDisplay ? "Whole display" : "\(width)×\(height) at (\(x), \(y))")
+							.foregroundStyle(.secondary)
+						Spacer()
+						Button("Select…") { selectRegion() }
+							.controlSize(.small)
+						Button("Whole display") { x = 0; y = 0; width = 0; height = 0 }
+							.controlSize(.small)
+							.disabled(wholeDisplay)
+					}
+				}
+				if streamer.permissionScreenDenied {
+					Banner(kind: .error, symbol: "rectangle.slash", message: "Screen Recording is turned off for MicroCast.", actionTitle: "Open Settings", action: ScreenPermission.openSettings)
+				}
+			} header: {
+				Text("Source")
+			} footer: {
+				Text("Captures a display or a region of it with ScreenCaptureKit. macOS asks once for Screen Recording. \(applyNote)")
+			}
+			Section {
+				Picker("Frame rate", selection: $fps) {
+					ForEach([5, 10, 12, 15, 20, 30], id: \.self) { Text("\($0) fps").tag($0) }
+				}
+				Picker("Max width", selection: $maxWidth) {
+					ForEach([640, 960, 1280, 1600, 1920], id: \.self) { Text("\($0) px").tag($0) }
+				}
+				LabeledContent("Quality") {
+					HStack {
+						Slider(value: $quality, in: 0.3 ... 0.95, step: 0.05)
+						Text("\(Int((quality * 100).rounded())) %").monospacedDigit().frame(width: 52, alignment: .trailing)
+					}
+				}
+			} header: {
+				Text("Quality")
+			} footer: {
+				Text("The screen is sent as MJPEG (a stream of JPEG frames) shown in the page; higher rate, width and quality mean more bandwidth. It carries no audio and is not synced to the stream. \(applyNote)")
+			}
+		}
+		.formStyle(.grouped)
+		.frame(height: 560)
+		.task {
+			displays = await ScreenCapture.displays()
+			if displayID == 0, let first = displays.first { displayID = Int(first.id) }
+		}
+	}
+
+	private func selectRegion() {
+		guard ScreenPermission.request() else { ScreenPermission.openSettings(); return }
+		let screen = NSScreen.screens.first { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == CGDirectDisplayID(displayID) } ?? NSScreen.main
+		guard let screen else { return }
+		NSApp.hide(nil)
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+			picker.present(on: screen) { region in
+				NSApp.unhide(nil)
+				NSApp.activate(ignoringOtherApps: true)
+				guard let region else { return }
+				x = region.x; y = region.y; width = region.width; height = region.height
+			}
 		}
 	}
 }
