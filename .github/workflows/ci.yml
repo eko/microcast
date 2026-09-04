@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version
+      - name: Unit tests
+        run: swift test
+      - name: App bundle and DMG
+        run: ./dist.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MicroCast-dmg
+          path: build/*.dmg*
+
+  release:
+    name: Release ${{ github.ref_name }}
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: macos-15
+    permissions:
+      contents: write
+    env:
+      # Optional: a Developer ID certificate and notarization credentials, as repository secrets.
+      HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_SIGN_IDENTITY != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Import the signing certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT_P12" | base64 --decode > certificate.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          rm certificate.p12
+      - name: Store notarization credentials
+        if: env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: xcrun notarytool store-credentials ci --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+      - name: Build the versioned DMG
+        env:
+          VERSION: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          SIGN_IDENTITY: ${{ env.HAS_SIGNING == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+          NOTARY_PROFILE: ${{ env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true' && 'ci' || '' }}
+        run: VERSION="${VERSION#v}" ./dist.sh
+      - name: Release notes from the changelog
+        id: notes
+        run: |
+          {
+            echo 'body<<EOF'
+            awk -v v="${GITHUB_REF_NAME#v}" '
+              /^## / { if (found) exit; found = index($0, v) > 0; next }
+              found { print }
+            ' CHANGELOG.md
+            echo
+            echo "SHA-256:"
+            echo '```'
+            cat build/*.dmg.sha256
+            echo '```'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: MicroCast ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            build/MicroCast-*.dmg
+            build/MicroCast-*.dmg.sha256

@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0d0f13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>MicroCast</title>
+<style>
+  :root {
+    --bg: #f4f5f8; --card: #ffffff; --line: #e3e6ec; --fg: #14161b; --muted: #6b7280; --faint: #9aa0aa;
+    --accent: #2f6df6; --accent-fg: #ffffff; --chip: #eef1f6; --chip-fg: #1f2937; --chip-active: #dbe6ff;
+    --track: #e6e9ef; --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px -12px rgba(16, 24, 40, .12);
+    --live: #22c55e; --danger: #ef4444;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f13; --card: #161920; --line: #262a34; --fg: #e8eaf0; --muted: #9aa0aa; --faint: #6b7280;
+      --accent: #3b7cff; --chip: #20242e; --chip-fg: #d5d9e2; --chip-active: #22335f; --track: #262a34; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 540px; margin: 0 auto; padding: 28px 16px calc(40px + env(safe-area-inset-bottom)); }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  header img { width: 52px; height: 52px; border-radius: 12px; box-shadow: var(--shadow); }
+  header h1 { font-size: 21px; margin: 0; letter-spacing: -.01em; }
+  header .sub { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 0 rgba(34,197,94,.5); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); } 70% { box-shadow: 0 0 0 7px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+  #public { font-size: 12px; color: var(--faint); margin: -8px 0 16px; word-break: break-all; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); }
+  .card + .card { margin-top: 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+
+  .segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--chip); border-radius: 12px; }
+  .segmented button { border: 0; background: transparent; color: var(--muted); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.25; }
+  .segmented button strong { display: block; color: var(--fg); font-weight: 600; }
+  .segmented button.active { background: var(--card); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .segmented button.active strong { color: var(--accent); }
+
+  .player { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+  .play { flex: none; width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-fg); cursor: pointer; display: grid; place-items: center; transition: transform .1s, background .2s; position: relative; }
+  .play:active { transform: scale(.95); }
+  .play svg { width: 26px; height: 26px; fill: currentColor; }
+  .play.playing { background: var(--danger); }
+  .play.playing::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--danger); opacity: .5; animation: ring 1.6s ease-out infinite; }
+  @keyframes ring { 0% { transform: scale(.85); opacity: .6; } 100% { transform: scale(1.25); opacity: 0; } }
+  .play.busy { opacity: .6; cursor: progress; }
+  .state { flex: 1; min-width: 0; }
+  .state .title { font-weight: 600; font-size: 15px; }
+  .state .detail { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .meter { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; margin-top: 8px; }
+  .meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #22c55e 0 55%, #eab308 55% 80%, #ef4444 80%); transition: width .06s linear; }
+  .controls { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  select { font: inherit; font-size: 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--chip); color: var(--fg); padding: 7px 30px 7px 10px; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' fill='none' stroke='%239aa0aa' stroke-width='1.5'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; }
+  .volume { display: flex; align-items: center; gap: 8px; color: var(--faint); margin-left: auto; }
+  input[type=range] { width: 120px; accent-color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 0; background: var(--chip); color: var(--chip-fg); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chip.active { background: var(--chip-active); color: var(--accent); font-weight: 600; }
+  .stat { display: inline-flex; align-items: center; gap: 5px; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 3px 9px; font-size: 12px; margin: 10px 6px 0 0; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 10px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+  td:first-child { width: 90px; }
+  tr:first-child td { border-top: 0; }
+  .fmt { font-weight: 600; }
+  .fmt small { display: block; font-weight: 400; color: var(--faint); font-size: 11px; }
+  .address { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 10px; background: var(--chip); border-radius: 10px; }
+  .address code { flex: 1; min-width: 0; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--chip-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon-btn { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 6px; display: grid; place-items: center; }
+  .icon-btn:hover { background: rgba(127,127,127,.15); }
+  .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-btn.done { color: var(--live); }
+  audio { width: 100%; margin-top: 12px; }
+  /* Off air */
+  #offair { text-align: center; padding: 36px 16px 28px; }
+  #offair .glow { display: block; width: 112px; height: 112px; border-radius: 26px; margin: 0 auto 18px; box-shadow: 0 0 0 0 rgba(59,124,255,.35); animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe { 0%, 100% { box-shadow: 0 0 0 0 rgba(59,124,255,.35), 0 12px 40px -12px rgba(0,0,0,.5); transform: scale(1); } 50% { box-shadow: 0 0 0 22px rgba(59,124,255,0), 0 12px 40px -12px rgba(0,0,0,.5); transform: scale(1.03); } }
+  .offpill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: rgba(239,68,68,.12); color: #ef4444; font-weight: 700; letter-spacing: .12em; font-size: 12px; }
+  .offpill i { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; opacity: .6; animation: blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: 1; } }
+  #offair h2 { text-transform: none; letter-spacing: 0; font-size: 22px; color: var(--fg); margin: 16px 0 6px; }
+  #offair p { color: var(--muted); margin: 0 0 20px; }
+  .bars { display: flex; gap: 5px; justify-content: center; align-items: flex-end; height: 26px; margin: 0 auto 22px; }
+  .bars i { width: 5px; border-radius: 3px; background: var(--faint); opacity: .5; animation: idle 2.4s ease-in-out infinite; height: 30%; }
+  .bars i:nth-child(2) { animation-delay: .3s; } .bars i:nth-child(3) { animation-delay: .6s; } .bars i:nth-child(4) { animation-delay: .9s; } .bars i:nth-child(5) { animation-delay: 1.2s; }
+  @keyframes idle { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+  .arm { border: 0; border-radius: 12px; padding: 12px 20px; font: inherit; font-weight: 600; background: var(--accent); color: #fff; cursor: pointer; }
+  .arm.armed { background: var(--chip); color: var(--fg); cursor: default; }
+  .arm .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--live); margin-right: 8px; vertical-align: middle; }
+  /* Now playing */
+  #np { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px 12px; background: var(--chip); border-radius: 12px; }
+  #np img { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; background: var(--track); }
+  #np .t { font-weight: 600; line-height: 1.3; } #np .a { color: var(--muted); font-size: 13px; }
+  footer { text-align: center; color: var(--faint); font-size: 12px; margin-top: 28px; }
+  footer a { color: inherit; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/icon.png" alt="">
+    <div>
+      <h1>MicroCast</h1>
+      <div class="sub"><span class="dot"></span><span id="listeners">Live</span></div>
+    </div>
+  </header>
+  <div id="public" hidden></div>
+
+  <section class="card" id="offair" hidden>
+    <img class="glow" src="/icon.png" alt="">
+    <span class="offpill"><i></i>OFF AIR</span>
+    <h2 id="offTitle">Not streaming right now</h2>
+    <p id="offDetail">This page will come alive as soon as the stream starts.</p>
+    <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+    <button id="arm" class="arm">▶ Play when it starts</button>
+  </section>
+
+  <section class="card" id="listenCard">
+    <h2>Listen</h2>
+    <div id="np" hidden><img id="npArt" alt=""><div><div class="t" id="npTitle"></div><div class="a" id="npArtist"></div></div></div>
+    <div class="segmented" role="tablist">
+      <button id="modeHls" class="active" role="tab"><strong>HLS</strong>compressed · 1–3 s</button>
+      <button id="modePcm" role="tab"><strong>Ultra-low latency</strong>uncompressed · 0.2 s</button>
+    </div>
+    <div class="player">
+      <button id="play" class="play" aria-label="Play">
+        <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg>
+        <svg id="iconStop" viewBox="0 0 24 24" style="display:none"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>
+      </button>
+      <div class="state">
+        <div class="title" id="stateTitle">Ready</div>
+        <div class="detail" id="stateDetail">Tap play to listen</div>
+        <div class="meter"><i id="level"></i></div>
+      </div>
+    </div>
+    <div class="controls">
+      <select id="quality"><option value="auto">Auto quality</option></select>
+      <label class="volume">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 010 7M18.5 5.5a9 9 0 010 13"/></svg>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume">
+      </label>
+    </div>
+    <div id="stats"></div>
+    <div class="address" id="playAddress" hidden><code id="playUrl"></code><button class="icon-btn" id="copyPlay" aria-label="Copy address"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg></button></div>
+  </section>
+
+  <section class="card" id="listenersCard">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+      <h2 style="margin:0">Listeners</h2>
+      <span class="detail" id="listenersNow" style="color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums"></span>
+    </div>
+    <svg id="chart" viewBox="0 0 600 90" preserveAspectRatio="none" style="width:100%;height:90px;display:block;margin-top:10px"></svg>
+    <div style="display:flex;justify-content:space-between;color:var(--faint);font-size:11px;margin-top:4px"><span id="chartFrom"></span><span>now</span></div>
+  </section>
+
+  <section class="card" id="directCard">
+    <h2>Direct streams</h2>
+    <table id="streams"></table>
+    <div class="address" id="directAddress" hidden><code id="directUrl"></code><button class="icon-btn" id="copyDirect" aria-label="Copy address"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg></button></div>
+    <audio id="direct" controls hidden></audio>
+    <p class="detail" style="color:var(--faint);font-size:12px;margin:12px 0 0">Tap a bitrate to play it here, or copy the address into VLC, mpv, foobar2000 or any player. FLAC is lossless.</p>
+  </section>
+
+  <footer>Powered by <a href="https://github.com/eko/microcast">MicroCast</a></footer>
+</main>
+<script src="/hls.min.js"></script>
+<script>
+if (!window.Hls) {
+  const fallback = document.createElement('script');
+  fallback.src = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.6.15/hls.min.js';
+  document.head.appendChild(fallback);
+}
+</script>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const player = new Audio(), direct = $('direct'), quality = $('quality'), play = $('play'), volume = $('volume');
+  const stateTitle = $('stateTitle'), stateDetail = $('stateDetail'), stats = $('stats'), level = $('level');
+  const base = location.origin;
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let mode = 'hls', hls, timer, playing = false, starting = false, startedAt = 0;
+  let ctx, gain, reader, pcmRunning = false, nextTime = 0, underruns = 0, droppedFrames = 0, format = {};
+  let meterCtx, analyser, meterData, meterLevel = 0, meterSource;
+
+  const status = await fetch('/status.json').then((r) => r.json()).catch(() => ({ bitrates: [64, 128, 256, 320], mp3: false }));
+  const name = status.name || 'MicroCast';
+  document.title = name;
+  document.querySelector('h1').textContent = name;
+  $('public').textContent = status.publicURL ? `Public address: ${status.publicURL}` : '';
+  $('public').hidden = !status.publicURL;
+  let holdBack = 3 * ((status.partDurationMs || 334) / 1000 + 0.022);
+  let hlsOn = true, pcmOn = true, activeChip;
+  const remember = () => { try { localStorage.setItem('microcast', JSON.stringify({ mode, quality: quality.value })); } catch (_) {} };
+  const applyMode = () => {
+    $('modeHls').classList.toggle('active', mode === 'hls');
+    $('modePcm').classList.toggle('active', mode === 'pcm');
+    quality.hidden = mode !== 'hls';
+  };
+  // Everything that depends on the live configuration: renditions, formats, modes. Runs at load and when the
+  // stream comes back, because a page opened while off air has no formats to show yet.
+  function configure(s) {
+    holdBack = 3 * ((s.partDurationMs || 334) / 1000 + 0.022);
+    hlsOn = s.hls !== false; pcmOn = s.pcm !== false;
+    $('modeHls').hidden = !hlsOn; $('modePcm').hidden = !pcmOn;
+    document.querySelector('.segmented').style.gridTemplateColumns = hlsOn && pcmOn ? '1fr 1fr' : '1fr';
+    const bitrates = s.bitrates || [64, 128, 256, 320];
+    quality.innerHTML = '<option value="auto">Auto quality</option>';
+    for (const bitrate of [...bitrates].sort((a, b) => b - a)) {
+      const option = document.createElement('option');
+      option.value = bitrate; option.textContent = `${bitrate} kbps`;
+      quality.appendChild(option);
+    }
+    quality.value = String(Math.max(...bitrates));
+    try {
+      const saved = JSON.parse(localStorage.getItem('microcast') || '{}');
+      if (saved.mode === 'pcm' || saved.mode === 'hls') mode = saved.mode;
+      if (saved.quality && [...quality.options].some((o) => o.value === saved.quality)) quality.value = saved.quality;
+    } catch (_) {}
+    if (!hlsOn && mode === 'hls') mode = 'pcm';
+    if (!pcmOn && mode === 'pcm') mode = 'hls';
+    play.disabled = !hlsOn && !pcmOn; play.style.opacity = play.disabled ? .4 : '';
+    if (play.disabled) { stateTitle.textContent = 'Page playback is off'; stateDetail.textContent = 'Use a direct stream below'; }
+    applyMode();
+    // ---- Direct streams table
+    const formats = [];
+    if (s.aac !== false) formats.push(['AAC', 'aac', bitrates, 'AAC-LC · ADTS']);
+    if (s.mp3) formats.push(['MP3', 'mp3', bitrates, 'MPEG-1 Layer III']);
+    if (s.flac !== false) formats.push(['FLAC', 'flac', null, 'lossless · 48 kHz']);
+    $('streams').innerHTML = '';
+    $('directCard').hidden = !formats.length;
+    for (const [label, ext, rates, note] of formats) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td'); cell.innerHTML = `<div class="fmt">${label}<small>${note}</small></div>`; row.appendChild(cell);
+      const chips = document.createElement('td'); chips.className = 'chips';
+      const entries = rates ? rates.map((b) => [`${b} kbps`, `${base}/stream-${b}.${ext}`]) : [['Lossless', `${base}/stream.flac`]];
+      for (const [text, url] of entries) {
+        const chip = document.createElement('button');
+        chip.className = 'chip'; chip.textContent = text; chip.dataset.url = url;
+        chip.addEventListener('click', () => {
+          stop();
+          if (activeChip) activeChip.classList.remove('active');
+          activeChip = chip; chip.classList.add('active');
+          direct.hidden = false; direct.src = url; direct.volume = Number(volume.value);
+          $('directUrl').textContent = url; $('directAddress').hidden = false;
+          direct.play().catch(() => {});
+        });
+        chips.appendChild(chip);
+      }
+      row.appendChild(chips);
+      $('streams').appendChild(row);
+    }
+  }
+  if (status.live !== false) configure(status);
+
+  const showListeners = (n) => { $('listeners').textContent = n === 0 ? 'Live' : n === 1 ? 'Live · 1 listening' : `Live · ${n} listening`; };
+  // Area sparkline of the listener count: window grows from 5 to 30 minutes, "now" anchored on the right.
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2f6df6';
+  function drawChart(s) {
+    const rows = (s.history || []).map(([t, n]) => [t * 1000, n]);
+    const now = Date.now();
+    const span = Math.min(30 * 60000, Math.max(5 * 60000, rows.length ? now - rows[0][0] : 0));
+    const W = 600, H = 90, pad = 4;
+    const peak = Math.max(2, ...rows.map((r) => r[1]));
+    const x = (t) => W - ((now - t) / span) * W;
+    const y = (n) => H - pad - (n / peak) * (H - 2 * pad);
+    const pts = rows.filter((r) => now - r[0] <= span).map((r) => [x(r[0]), y(r[1])]);
+    if (rows.length) pts.push([W, y(rows[rows.length - 1][1])]);
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const area = pts.length ? `${line} L${W},${H} L${pts[0][0].toFixed(1)},${H} Z` : '';
+    const grid = [0.5, 1].map((f) => { const gy = y(peak * f).toFixed(1); return `<line x1="0" x2="${W}" y1="${gy}" y2="${gy}" stroke="currentColor" stroke-opacity=".12" stroke-width="1" vector-effect="non-scaling-stroke"/>`; }).join('');
+    $('chart').innerHTML = `${grid}<path d="${area}" fill="${accent}" fill-opacity=".18"/><path d="${line}" fill="none" stroke="${accent}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    $('chartFrom').textContent = `${Math.round(span / 60000)} min ago`;
+    $('listenersNow').textContent = `${s.listeners || 0} now · peak ${s.peak || 0}`;
+  }
+
+  // ---- Off air ⇄ live. A click on "Play when it starts" is the user gesture browsers need to autoplay later.
+  let live = status.live !== false, armed = false, npKey = '';
+  const cards = () => [...document.querySelectorAll('.card')].filter((c) => c.id !== 'offair');
+  const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'a moment ago' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+  function showNowPlaying(s) {
+    const np = s.nowPlaying;
+    const key = np ? `${np.title}|${np.artist}|${np.artwork || ''}` : '';
+    if (key === npKey) return;
+    npKey = key;
+    $('np').hidden = !np;
+    if (!np) { if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: name, artist: 'Live stream', artwork: [{ src: '/icon.png', sizes: '256x256', type: 'image/png' }] }); return; }
+    $('npTitle').textContent = np.title; $('npArtist').textContent = np.album ? `${np.artist} · ${np.album}` : np.artist;
+    $('npArt').src = np.artwork || '/icon.png';
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: np.title, artist: np.artist, album: np.album || name, artwork: [{ src: np.artwork || '/icon.png', sizes: '256x256' }] });
+  }
+  function applyLive(s) {
+    const nowLive = s.live !== false;
+    $('offair').hidden = nowLive;
+    cards().forEach((c) => { c.hidden = !nowLive; });
+    document.querySelector('.dot').style.background = nowLive ? 'var(--live)' : '#ef4444';
+    if (!nowLive) {
+      $('listeners').textContent = 'Off air';
+      $('offDetail').textContent = s.lastLive ? `Last on air ${ago(s.lastLive)}. This page will come alive as soon as the stream starts.` : 'This page will come alive as soon as the stream starts.';
+      document.title = `Off air · ${name}`;
+      if (playing) stop('The stream ended');
+    } else {
+      document.title = name;
+    }
+    if (nowLive && !live) {
+      configure(s);
+      if (armed) { armed = false; $('arm').classList.remove('armed'); $('arm').textContent = '▶ Play when it starts'; start(); }
+    }
+    live = nowLive;
+    showNowPlaying(s);
+  }
+  $('arm').addEventListener('click', () => {
+    if (armed) return;
+    armed = true;
+    $('arm').classList.add('armed'); $('arm').innerHTML = '<span class="dot"></span>Standing by, will start automatically';
+    try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); ctx.resume().then(() => ctx.close()); } catch (_) {}
+    player.play().catch(() => {}); // consumes the gesture so the later, automatic play() is allowed
+  });
+  showListeners(status.listeners || 0); drawChart(status); applyLive(status);
+  setInterval(() => fetch('/status.json').then((r) => r.json()).then((s) => { if (s.live !== false) showListeners(s.listeners || 0); drawChart(s); applyLive(s); }).catch(() => {}), live ? 5000 : 3000);
+
+  // ---- Copy buttons
+  const copyIcon = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>';
+  const checkIcon = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const wireCopy = (button, source) => button.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(source().textContent); } catch (_) { return; }
+    button.classList.add('done'); button.innerHTML = checkIcon;
+    setTimeout(() => { button.classList.remove('done'); button.innerHTML = copyIcon; }, 1400);
+  });
+  wireCopy($('copyPlay'), () => $('playUrl'));
+  wireCopy($('copyDirect'), () => $('directUrl'));
+
+  // ---- Level meter: an analyser on the media element (not on iOS, where it breaks playback), RMS on PCM chunks.
+  function attachMeter(element) {
+    if (isIOS) return;
+    try {
+      meterCtx = meterCtx || new (window.AudioContext || window.webkitAudioContext)();
+      meterSource = meterSource || meterCtx.createMediaElementSource(element);
+      analyser = analyser || meterCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      meterSource.connect(analyser); analyser.connect(meterCtx.destination);
+      meterData = new Float32Array(analyser.fftSize);
+      meterCtx.resume().catch(() => {});
+    } catch (_) {}
+  }
+  function readAnalyser() {
+    if (!analyser || mode !== 'hls') return;
+    analyser.getFloatTimeDomainData(meterData);
+    let sum = 0;
+    for (let i = 0; i < meterData.length; i++) sum += meterData[i] * meterData[i];
+    meterLevel = Math.sqrt(sum / meterData.length);
+  }
+  let shown = 0;
+  (function paint() {
+    readAnalyser();
+    const target = playing ? Math.min(1, Math.max(0, (20 * Math.log10(meterLevel + 1e-6) + 50) / 50)) : 0;
+    shown = target > shown ? target : shown * 0.85;
+    level.style.width = `${(shown * 100).toFixed(1)}%`;
+    requestAnimationFrame(paint);
+  })();
+
+  // ---- Presentation
+  const elapsed = () => { const s = Math.floor((Date.now() - startedAt) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  function setPlaying(on) {
+    playing = on;
+    play.classList.toggle('playing', on);
+    play.classList.remove('busy');
+    $('iconPlay').style.display = on ? 'none' : ''; $('iconStop').style.display = on ? '' : 'none'; // SVG elements have no .hidden
+    play.setAttribute('aria-label', on ? 'Stop' : 'Play');
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
+  }
+  function setStats(items) {
+    stats.innerHTML = items.map(([k, v]) => `<span class="stat">${k} <b>${v}</b></span>`).join('');
+  }
+
+  // ---- HLS
+  function startHls() {
+    const levelChoice = quality.value;
+    const url = levelChoice === 'auto' ? '/hls/master.m3u8' : `/hls/${levelChoice}/stream.m3u8`;
+    $('playUrl').textContent = base + url; $('playAddress').hidden = false;
+    player.volume = Number(volume.value);
+    attachMeter(player);
+    if (window.Hls && Hls.isSupported()) {
+      // maxLiveSyncPlaybackRate 1: never time-stretch audio to catch up (it sounds choppy); instead jump once
+      // if we fall more than a few seconds behind. hls.js accepts liveMaxLatencyDuration only with liveSyncDuration.
+      try {
+        hls = new Hls({
+          lowLatencyMode: true, liveDurationInfinity: true, backBufferLength: 30, enableWorker: true,
+          maxLiveSyncPlaybackRate: 1, liveSyncDuration: holdBack, liveMaxLatencyDuration: holdBack + 4,
+          startLevel: -1, abrEwmaDefaultEstimate: 5000000,
+        });
+      } catch (err) {
+        return fail('Player error: ' + err.message);
+      }
+      hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) fail('Stream error: ' + data.details); });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => player.play().then(() => { setPlaying(true); startedAt = Date.now(); }).catch((err) => fail(err.message)));
+      hls.loadSource(url);
+      hls.attachMedia(player);
+      timer = setInterval(() => {
+        if (!hls || !playing) return;
+        const current = hls.levels && hls.levels[hls.currentLevel];
+        const kbps = current && current.bitrate ? `${Math.round(current.bitrate / 1000)} kbps` : (levelChoice === 'auto' ? '' : `${levelChoice} kbps`);
+        stateTitle.textContent = 'Playing · HLS';
+        stateDetail.textContent = `${elapsed()} · latency ${hls.latency.toFixed(1)} s`;
+        setStats([['bitrate', kbps], ['target', `${hls.targetLatency ? hls.targetLatency.toFixed(1) : '?'} s`], ['buffer', `${Math.max(0, player.buffered.length ? player.buffered.end(player.buffered.length - 1) - player.currentTime : 0).toFixed(1)} s`]]);
+      }, 500);
+    } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+      player.src = url;
+      player.play().then(() => { setPlaying(true); startedAt = Date.now(); stateTitle.textContent = 'Playing · HLS'; stateDetail.textContent = 'Native playback'; }).catch((err) => fail(err.message));
+      timer = setInterval(() => { if (playing) stateDetail.textContent = `${elapsed()} · native playback`; }, 1000);
+    } else {
+      return fail('This browser cannot play HLS');
+    }
+  }
+
+  // ---- Raw PCM over fetch + Web Audio: 150 ms of scheduling headroom, drop instead of lagging.
+  const TARGET_AHEAD = 0.15, MAX_AHEAD = 1.0;
+  function schedule(bytes, frames) {
+    const now = ctx.currentTime;
+    if (nextTime < now) { if (nextTime > 0) underruns++; nextTime = now + TARGET_AHEAD; }
+    if (nextTime - now > MAX_AHEAD) { droppedFrames += frames; return; }
+    const buffer = ctx.createBuffer(format.channels, frames, format.rate);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let sum = 0;
+    for (let c = 0; c < format.channels; c++) {
+      const channel = buffer.getChannelData(c);
+      for (let i = 0; i < frames; i++) { const v = view.getInt16((i * format.channels + c) * 2, true) / 32768; channel[i] = v; sum += v * v; }
+    }
+    meterLevel = Math.sqrt(sum / (frames * format.channels));
+    const source = ctx.createBufferSource();
+    source.buffer = buffer; source.connect(gain); source.start(nextTime);
+    nextTime += frames / format.rate;
+  }
+  async function startPcm() {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    gain = ctx.createGain(); gain.gain.value = Number(volume.value); gain.connect(ctx.destination);
+    await ctx.resume();
+    $('playUrl').textContent = base + '/stream.pcm'; $('playAddress').hidden = false;
+    const response = await fetch('/stream.pcm', { cache: 'no-store' });
+    if (!response.ok || !response.body) throw new Error('stream unavailable (' + response.status + ')');
+    format = { rate: Number(response.headers.get('X-Sample-Rate')), channels: Number(response.headers.get('X-Channels')) };
+    const frameBytes = format.channels * 2;
+    reader = response.body.getReader();
+    pcmRunning = true; nextTime = 0; underruns = 0; droppedFrames = 0;
+    setPlaying(true); startedAt = Date.now();
+    timer = setInterval(() => {
+      if (!ctx) return;
+      const ahead = Math.max(0, nextTime - ctx.currentTime);
+      stateTitle.textContent = 'Playing · ultra-low latency';
+      stateDetail.textContent = `${elapsed()} · latency ≈ ${Math.round(ahead * 1000 + 30)} ms`;
+      setStats([['format', `${format.rate / 1000} kHz · ${format.channels} ch · 16-bit`], ['underruns', underruns], ['dropped', `${(droppedFrames / format.rate).toFixed(1)} s`]]);
+    }, 250);
+    let pending = new Uint8Array(0);
+    while (pcmRunning) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      let bytes = value;
+      if (pending.length) { bytes = new Uint8Array(pending.length + value.length); bytes.set(pending); bytes.set(value, pending.length); }
+      const frames = Math.floor(bytes.length / frameBytes);
+      pending = bytes.slice(frames * frameBytes);
+      if (frames) schedule(bytes.subarray(0, frames * frameBytes), frames);
+    }
+    if (pcmRunning) stop('Stream ended');
+  }
+
+  function fail(message) {
+    stop();
+    stateTitle.textContent = 'Could not play';
+    stateDetail.textContent = message;
+  }
+
+  function stop(message) {
+    clearInterval(timer);
+    if (hls) { hls.destroy(); hls = undefined; }
+    player.pause(); player.removeAttribute('src'); player.load();
+    pcmRunning = false;
+    if (reader) reader.cancel().catch(() => {});
+    if (ctx) ctx.close().catch(() => {});
+    reader = ctx = gain = undefined;
+    meterLevel = 0;
+    setPlaying(false);
+    starting = false;
+    stats.innerHTML = '';
+    stateTitle.textContent = 'Ready';
+    stateDetail.textContent = message || 'Tap play to listen';
+  }
+
+  function start() {
+    if (starting) return;
+    starting = true;
+    direct.pause();
+    play.classList.add('busy');
+    stateTitle.textContent = 'Connecting…'; stateDetail.textContent = mode === 'pcm' ? 'Ultra-low latency, uncompressed: needs about 1.5 Mbit/s' : 'Low-latency HLS';
+    if (mode === 'pcm') {
+      startPcm().catch((err) => fail(err.message)).finally(() => { starting = false; });
+    } else {
+      startHls();
+      starting = false;
+    }
+  }
+
+  play.addEventListener('click', () => { if (playing || starting) { stop('Stopped'); } else { start(); } });
+  $('modeHls').addEventListener('click', () => { if (mode === 'hls') return; mode = 'hls'; applyMode(); remember(); if (playing) { stop(); start(); } });
+  $('modePcm').addEventListener('click', () => { if (mode === 'pcm') return; mode = 'pcm'; applyMode(); remember(); if (playing) { stop(); start(); } });
+  quality.addEventListener('change', () => { remember(); if (playing && mode === 'hls') { stop(); start(); } });
+  volume.addEventListener('input', () => { const v = Number(volume.value); player.volume = v; direct.volume = v; if (gain) gain.gain.value = v; });
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); play.click(); } });
+  direct.addEventListener('play', () => { if (playing) stop(); });
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: name, artist: 'Live stream', artwork: [{ src: '/icon.png', sizes: '256x256', type: 'image/png' }] });
+    navigator.mediaSession.setActionHandler('play', () => { if (!playing) start(); });
+    navigator.mediaSession.setActionHandler('pause', () => stop('Stopped'));
+    navigator.mediaSession.setActionHandler('stop', () => stop('Stopped'));
+  }
+})();
+</script>
+</body>
+</html>

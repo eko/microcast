@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>MicroCast</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>local.microcast</string>
+	<key>CFBundleName</key>
+	<string>MicroCast</string>
+	<key>CFBundleDisplayName</key>
+	<string>MicroCast</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Local tool, no warranty.</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.2</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>MicroCast captures the sound of the applications you pick in order to stream it.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>MicroCast asks Music and Spotify which track is playing, to show it to listeners.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MicroCast records the audio interface you pick (for example Wave Link Stream) in order to stream it.</string>
+</dict>
+</plist>
