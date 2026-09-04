@@ -55,7 +55,8 @@ struct AudioApp: Identifiable, Hashable {
 			guard (try? CoreAudioProperty.read(objectID, kAudioProcessPropertyPID, into: &pid)) != nil, pid > 0 else { continue }
 			var playing: UInt32 = 0
 			try? CoreAudioProperty.read(objectID, kAudioProcessPropertyIsRunningOutput, into: &playing)
-			let owner = responsibleFunction.map { $0(pid) }.flatMap { $0 > 0 ? $0 : nil } ?? pid
+			let responsible = responsibleFunction?(pid) ?? 0
+			let owner: pid_t = responsible > 0 ? responsible : pid
 			let app = NSRunningApplication(processIdentifier: owner)
 			var group = groups[owner] ?? (app?.localizedName ?? processName(owner), app?.bundleIdentifier, false, [])
 			group.playing = group.playing || playing != 0
