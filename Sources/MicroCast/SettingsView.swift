@@ -42,20 +42,31 @@ struct SettingsView: View {
 	}
 
 	var body: some View {
-		// Only the selected pane is in the hierarchy, so the window shrinks and grows with it.
-		pane
-			.frame(width: 520)
-			.navigationTitle(tab.label)
-			.toolbar {
-				ToolbarItem(placement: .principal) {
-					HStack(spacing: 4) {
-						ForEach(Tab.allCases) { item in
-							TabButton(tab: item, selected: tab == item) { tab = item }
-						}
+		// Settings live inside the app's window rather than in one of their own, so the tab rail
+		// is drawn here instead of in a toolbar, and each pane's Form does its own scrolling.
+		VStack(spacing: 0) {
+			tabRail
+			Divider().opacity(0.45)
+			pane
+				.scrollContentBackground(.hidden)
+				.frame(maxWidth: .infinity, maxHeight: .infinity)
+				.id(tab) // a fresh pane rather than a cross-faded blend of two different forms
+				.transition(.opacity)
+		}
+	}
+
+	private var tabRail: some View {
+		ScrollView(.horizontal, showsIndicators: false) {
+			HStack(spacing: 4) {
+				ForEach(Tab.allCases) { item in
+					TabButton(tab: item, selected: tab == item) {
+						withAnimation(.easeOut(duration: 0.16)) { tab = item }
 					}
 				}
 			}
-			.onAppear { NSApp.activate(ignoringOtherApps: true) }
+			.padding(.horizontal, 12)
+			.padding(.vertical, 8)
+		}
 	}
 
 	@ViewBuilder private var pane: some View {
@@ -86,8 +97,9 @@ private struct TabButton: View {
 				Text(tab.label)
 					.font(.system(size: 11))
 			}
-			.foregroundStyle(selected ? Color.accentColor : Color.secondary)
-			.frame(width: 66)
+			.foregroundStyle(selected ? Color.accentColor : Color.muted)
+			// Seven tabs have to fit the window's minimum width, or the last one is cut off.
+			.frame(width: 60)
 			.padding(.vertical, 5)
 			.background(selected ? Color.primary.opacity(0.07) : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 			.contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -180,20 +192,9 @@ struct GeneralSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: generalHeight)
 		.onAppear {
 			if deviceUID.isEmpty { deviceUID = AudioDevices.preferredInput()?.uniqueID ?? "" }
 		}
-	}
-
-	private var generalHeight: CGFloat {
-		var height: CGFloat = 612
-		if sourceMode == "apps" {
-			height += 90 + (allApps ? 0 : CGFloat(max(1, apps.count)) * 30)
-			if !mixInput { height -= 46 }
-		}
-		if streamer.permissionDenied { height += 60 }
-		return height
 	}
 
 	private var selection: Set<String> {
@@ -202,7 +203,7 @@ struct GeneralSettings: View {
 
 	@ViewBuilder private var appList: some View {
 		if apps.isEmpty {
-			Text("No application is playing audio right now.").foregroundStyle(.secondary)
+			Text("No application is playing audio right now.").foregroundStyle(.muted)
 		}
 		ForEach(apps) { app in
 			Toggle(isOn: Binding(
@@ -321,7 +322,6 @@ struct StreamSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: bitratesText.isEmpty ? 980 : 1010)
 	}
 }
 
@@ -360,7 +360,7 @@ struct InternetSettings: View {
 				case .duckdns:
 					HStack {
 						TextField("DuckDNS subdomain", text: $duckSubdomain, prompt: Text("yourname"))
-						Text(".duckdns.org").foregroundStyle(.secondary)
+						Text(".duckdns.org").foregroundStyle(.muted)
 					}
 					SecureField("DuckDNS token", text: $duckToken)
 					TextField("Your own hostname", text: $duckHostname, prompt: Text("optional, e.g. cast.example.com"))
@@ -392,17 +392,6 @@ struct InternetSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: 420 + CGFloat(extraRows) * 46)
-	}
-
-	private var extraRows: Int {
-		switch provider {
-		case .cloudflareNamed: 2
-		case .custom: 1
-		case .duckdns: httpsEnabled ? 8 : 5
-		case .ownHost: httpsEnabled ? 6 : 3
-		default: 0
-		}
 	}
 
 	@ViewBuilder private var portForwardingFields: some View {
@@ -460,7 +449,7 @@ struct ScreenSettings: View {
 				LabeledContent("Region") {
 					HStack {
 						Text(wholeDisplay ? "Whole display" : "\(width)×\(height) at (\(x), \(y))")
-							.foregroundStyle(.secondary)
+							.foregroundStyle(.muted)
 						Spacer()
 						Button("Select…") { selectRegion() }
 							.controlSize(.small)
@@ -497,7 +486,6 @@ struct ScreenSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: 560)
 		.task {
 			displays = await ScreenCapture.displays()
 			if displayID == 0, let first = displays.first { displayID = Int(first.id) }
@@ -538,7 +526,7 @@ struct JingleSettings: View {
 					HStack {
 						Stepper(value: $everyTracks, in: 1...50) {
 							Text(everyTracks == 1 ? "Every track" : "Every \(everyTracks) tracks")
-								.foregroundStyle(.secondary)
+								.foregroundStyle(.muted)
 						}
 					}
 				}
@@ -548,7 +536,7 @@ struct JingleSettings: View {
 						Text((Settings.jingleFolder.path as NSString).abbreviatingWithTildeInPath)
 							.lineLimit(1)
 							.truncationMode(.middle)
-							.foregroundStyle(.secondary)
+							.foregroundStyle(.muted)
 						Button("Choose…", action: chooseFolder)
 							.controlSize(.small)
 						Button {
@@ -563,12 +551,12 @@ struct JingleSettings: View {
 				}
 				LabeledContent("Files") {
 					if files.isEmpty {
-						Text("None yet").foregroundStyle(.secondary)
+						Text("None yet").foregroundStyle(.muted)
 					} else {
 						Text(files.map(\.lastPathComponent).joined(separator: ", "))
 							.lineLimit(2)
 							.truncationMode(.tail)
-							.foregroundStyle(.secondary)
+							.foregroundStyle(.muted)
 					}
 				}
 				HStack {
@@ -610,7 +598,6 @@ struct JingleSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: 540)
 		.onAppear { files = JingleBank(folder: Settings.jingleFolder).files }
 	}
 
@@ -646,7 +633,7 @@ struct RecordingSettings: View {
 						Text(folderLabel)
 							.lineLimit(1)
 							.truncationMode(.middle)
-							.foregroundStyle(.secondary)
+							.foregroundStyle(.muted)
 						Button("Choose…", action: chooseFolder)
 							.controlSize(.small)
 						Button {
@@ -665,7 +652,6 @@ struct RecordingSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: 250)
 	}
 
 	private var folderLabel: String {
@@ -698,11 +684,11 @@ struct AboutView: View {
 				.resizable()
 				.frame(width: 96, height: 96)
 			Text("MicroCast").font(.title2.weight(.semibold))
-			Text("Version \(version)").font(.callout).foregroundStyle(.secondary)
+			Text("Version \(version)").font(.callout).foregroundStyle(.muted)
 			Text("Turn any audio input into a live stream: low-latency HLS, AAC, MP3, FLAC and raw PCM, on your network or through a tunnel.")
 				.multilineTextAlignment(.center)
 				.font(.callout)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(.muted)
 				.frame(maxWidth: 360)
 				.padding(.top, 4)
 			HStack(spacing: 16) {
@@ -714,7 +700,7 @@ struct AboutView: View {
 			.padding(.top, 6)
 			Text("© Vincent Composieux")
 				.font(.caption)
-				.foregroundStyle(.tertiary)
+				.foregroundStyle(.faint)
 				.padding(.top, 10)
 		}
 		.padding(28)

@@ -2,6 +2,14 @@ import XCTest
 @testable import MicroCast
 
 final class MiscTests: XCTestCase {
+	func testAudioScaleIsDecibelsOverSixtyDB() {
+		XCTAssertEqual(AudioScale.fraction(0), 0, "silence sits on the floor")
+		XCTAssertEqual(AudioScale.fraction(1), 1, accuracy: 0.001, "full scale fills the meter")
+		// Half amplitude is about -6 dB, which is 54/60 of the way up a 60 dB scale.
+		XCTAssertEqual(AudioScale.fraction(0.5), 0.8996, accuracy: 0.001)
+		XCTAssertEqual(AudioScale.fraction(0.001), 0, "below the floor is clamped, not negative")
+	}
+
 	override func tearDown() {
 		for key in ["enableTestFlag", "streamName", "jingleDuckDecibels"] { UserDefaults.standard.removeObject(forKey: key) }
 	}

@@ -26,6 +26,25 @@ to try the tunnels.
 | `build.sh`, `dist.sh`, `run.sh` | bundle, DMG, run |
 | `docs/` | user and developer documentation |
 
+## Documentation images
+
+The pictures in the README are regenerated from the running app, so they cannot quietly drift away
+from the interface they advertise:
+
+```sh
+defaults write local.microcast demoAddresses -bool true   # example.com instead of your own host
+Tools/shoot.sh docs/images/offair.png                     # then press Start, and:
+Tools/shoot.sh docs/images/onair.png
+swift Tools/make-hero.swift docs/images/hero.png docs/images
+defaults delete local.microcast demoAddresses
+```
+
+`shoot.sh` asks the app to draw its own window into a PNG. It renders the view hierarchy rather
+than photographing the screen, so it needs no Screen Recording permission — which is not a
+reasonable thing to ask of someone updating a screenshot. `demoAddresses` swaps the Listen panel
+for `cast.example.com`, so a public README never ships a contributor's domain, host name and LAN
+address.
+
 ## Style
 
 - Swift 5 language mode, tabs, `swift-format`-style layout. Small types with one job; protocols only where a second

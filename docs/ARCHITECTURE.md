@@ -36,16 +36,19 @@ flowchart LR
 | `PCMStream` | `PCMStream.swift` | Raw PCM coalesced into 20 ms chunks for the page's ultra-low-latency mode (uncompressed, 1.5 Mbit/s). |
 | `Broadcaster` | `Broadcaster.swift` | Fan-out of a byte stream to any number of consumers, each an `AsyncStream` with a bounded buffer. |
 | `Recorder` | `Recorder.swift` | A consumer that writes to a file. |
-| `ListenerHistory` | `ListenerHistory.swift` | Listener counts sampled every 5 s for an hour, with the peak; feeds the popover chart (Swift Charts) and the page sparkline through `/status.json`. |
+| `ListenerHistory` | `ListenerHistory.swift` | Listener counts sampled every 5 s for an hour, with the peak; feeds the dashboard chart (Swift Charts) and the page sparkline through `/status.json`. |
 | `HTTPServer` | `HTTPServer.swift` | HTTP/1.1 on `NWListener`: GET/HEAD, keep-alive, endless bodies, Bonjour registration, optional TLS from a `SecIdentity`. |
 | `Router` | `Router.swift` | URL → response. Basic auth, listener counting, `/status.json`, playlists, segments, streams. |
 | `Tunnel` | `Tunnel.swift` | Spawns the tunnel CLI, parses its output for the public URL (`TunnelOutputParser`, unit tested). |
 | `DuckDNSPublisher` | `DuckDNS.swift` | Port-forwarding modes: keeps a DuckDNS name pointed here (IPv4 only) or trusts the router's DynDNS, obtains and renews the certificate (DNS-01 through DuckDNS, HTTP-01 otherwise), hands the identity to an HTTPS listener. |
 | `ACMEClient` | `ACME.swift` | RFC 8555 client on CryptoKit ES256 JWS with DNS-01 and HTTP-01; CSR through the system `openssl`; `ACMEChallengeStore` backs `/.well-known/acme-challenge/`. Unit tested; verified against Let's Encrypt staging. |
 | `TLSIdentity` | `TLS.swift` | PEM → PKCS#12 → `SecIdentity` for Network.framework, expiry parsing. |
-| `MenuView` | `MenuView.swift` | The menu bar panel: status, meters, start/stop, addresses, QR code, recording, banners. |
+| `AppDelegate` | `AppDelegate.swift` | Owns the status item and the window. The window is built in AppKit and hosts SwiftUI, because a scene's lifetime belongs to SwiftUI and a menu bar app needs a window it can hide and bring back; closing hides it, and the app is a regular one while the window is up and an accessory when it is not. The traffic lights are hidden but the window stays `.closable`, so ⌘W still routes through `windowShouldClose`. |
+| `RootView` | `RootView.swift` | The window's shell: its own title bar, and the slide between the dashboard and settings. |
+| `DashboardView` | `DashboardView.swift` | The main screen, and two of them really: on air it shows the stereo trace, vitals, current track with its cover, listeners chart and addresses; off air the meters have nothing to show, so it becomes a pre-flight panel — source, formats, address and jingles, each row saying whether it looks usable and opening the settings tab that changes it. |
 | `SettingsView` | `SettingsView.swift` | The Settings window (⌘,): General, Stream, Internet, Recording, About. |
-| `Components` | `Components.swift` | `LevelMeter`, `CopyButton`, `Banner`, `PrimaryButtonStyle`, QR generation. |
+| `Screenshot` | `Screenshot.swift` | Draws the window into a PNG on a distributed notification, for `Tools/shoot.sh`. Renders the view rather than capturing the display, so documentation images need no Screen Recording permission. |
+| `Components` | `Components.swift` | `StereoTrace` (the single sound picture: scrolling level for both channels plus peak-hold marks), `BroadcastButton`, `AmbientBackground`, `Card`, `PreflightRow`, `CopyButton`, `Banner`, QR generation. |
 
 ## Threads and queues
 
@@ -53,7 +56,8 @@ flowchart LR
 - Every encoder has its own serial queue; encoding one 5 ms buffer costs well under a millisecond.
 - `LivePlaylist` and `Broadcaster` are lock-protected and callable from anywhere.
 - The HTTP server bridges Network.framework callbacks to Swift concurrency; each connection is a `Task`.
-- `Streamer` lives on the main actor; a 20 Hz timer refreshes the meters (with a decaying peak hold), the
+- `Streamer` lives on the main actor; a 20 Hz timer refreshes the levels (with a decaying peak hold) and a 1 Hz one
+  the counters and live settings, since only a needle needs twenty updates a second. The
   counters, and compares the live settings with the snapshot taken at start to offer a restart.
 
 ## Low-Latency HLS

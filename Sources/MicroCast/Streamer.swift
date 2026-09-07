@@ -198,6 +198,8 @@ final class Streamer {
 	private(set) var nowPlaying: NowPlaying?
 	/// Jingle files available for the manual button.
 	private(set) var jingleCount = 0
+	/// The current track's cover, decoded once from the bytes already cached for the page.
+	private(set) var artwork: NSImage?
 	private(set) var jingleStatus = ""
 	let lame = MP3Stream.findLame()
 
@@ -231,6 +233,7 @@ final class Streamer {
 	/// Shared with the router so the page can show the public address.
 	private let publicURL = OSAllocatedUnfairLock<URL?>(initialState: nil)
 	private var meter: Timer?
+	private var housekeeping: Timer?
 	private var sampler: Timer?
 	private var history = ListenerHistory()
 	private var activeSnapshot: Settings.Snapshot?
@@ -269,6 +272,9 @@ final class Streamer {
 
 	func trackDidChange(_ track: NowPlaying?) {
 		nowPlaying = track
+		artwork = track?.artworkID
+			.flatMap { nowPlayingMonitor.artwork(id: $0) }
+			.flatMap { NSImage(data: $0.data) }
 		// A pause or a momentary blank at a boundary must not forget the previous track.
 		defer { if let track { lastTrackID = track.trackID } }
 		guard Settings.jinglesEnabled, isRunning, let track, let previous = lastTrackID, previous != track.trackID else { return }
@@ -479,6 +485,8 @@ final class Streamer {
 	func stop(keepOnline: Bool = Settings.keepOnline) {
 		meter?.invalidate()
 		meter = nil
+		housekeeping?.invalidate()
+		housekeeping = nil
 		sampler?.invalidate()
 		sampler = nil
 		nowPlayingMonitor.stop()
@@ -598,7 +606,12 @@ final class Streamer {
 		statusMessage = "Streaming \(sourceName)"
 		logger.info("streaming \(sourceName) on port \(port)")
 		meter = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-			Task { @MainActor in self?.refreshMeters() }
+			Task { @MainActor in self?.refreshLevels() }
+		}
+		// Everything that is not a needle does not need twenty updates a second, and each one
+		// costs a pass over the views that read it.
+		housekeeping = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+			Task { @MainActor in self?.refreshStatus() }
 		}
 		sampleListeners()
 		sampler = Timer.scheduledTimer(withTimeInterval: ListenerHistory.interval, repeats: true) { [weak self] _ in
@@ -831,12 +844,16 @@ final class Streamer {
 		peakListeners = history.peak
 	}
 
-	private func refreshMeters() {
+	private func refreshLevels() {
 		let levels = capture?.levels ?? (left: 0, right: 0)
 		levelLeft = levels.left
 		levelRight = levels.right
 		peakLeft = max(levels.left, peakLeft - 0.015)
 		peakRight = max(levels.right, peakRight - 0.015)
+	}
+
+	/// Counters and settings, once a second.
+	private func refreshStatus() {
 		listeners = router?.listenerCount ?? 0
 		recordingBytes = recorder?.bytesWritten ?? 0
 		settingsChanged = activeSnapshot.map { $0 != Settings.snapshot } ?? false

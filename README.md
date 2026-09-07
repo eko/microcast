@@ -9,6 +9,10 @@
   from a menu bar app, on your network or on your own domain with HTTPS.
 </p>
 
+<p align="center">
+  <sub>Off air it tells you whether everything is set. On air it is a control room. Settings slide in and out of the same window.</sub>
+</p>
+
 ## Why
 
 Streaming your Mac's audio somewhere else usually means Icecast, OBS or a paid service, and several seconds of
@@ -42,7 +46,7 @@ connection that can carry 1.5 Mbit/s, and hi-fi players get plain AAC, MP3 or lo
   prints a URL, with an optional password. Or **your own domain, free**: DuckDNS keeps a fixed name pointed at
   your router and the app serves HTTPS with a Let's Encrypt certificate it obtains and renews itself.
 - **Record while streaming** to FLAC, AAC or MP3 in `~/Music/MicroCast`.
-- **Menu bar app**: level meters, one-click start, QR code and share sheet for the addresses, a listener graph
+- **Menu bar app**: a stereo level trace, one-click start, QR code and share sheet for the addresses, a listener graph
   with peak, a Settings window,
   Bonjour advertisement, `hostname.local` links, launch at login and auto-start.
 - No third-party Swift dependencies: AVFoundation, AudioToolbox, Network.framework and SwiftUI only.
@@ -71,15 +75,22 @@ MP3 needs `lame` (`brew install lame`); everything else uses codecs built into m
 
 ## Use
 
-1. Click the radio icon in the menu bar and press **Start streaming**. Wave Link Stream is selected by default
-   when present; pick another input, or switch **Capture** to *Running applications* and tick the apps you want,
-   in **Settings… → General** (⌘,).
-2. The panel shows the level, the uptime and listener count, and the addresses to share: copy, AirDrop to your
-   phone with the share button, open in the browser, or scan the QR code.
-3. **Settings** holds the stream name and port; under **Stream** the HLS part and segment lengths (shorter = lower
-   latency, more requests), which formats to produce (HLS, AAC, MP3, FLAC, PCM) and the list of bitrates;
-   recording; and under **Internet** the tunnel and password. Changes apply on the next start; while live, the
-   panel offers a one-click restart.
+1. Click the radio icon in the menu bar. The window opens and stays open. It has no title bar buttons: click the
+   icon again, or press ⌘W, to put it away — either way MicroCast stays in the menu bar rather than quitting, and
+   the next click brings the same window back, same place, same screen you left it on. Drag it by its background.
+   Press **Start streaming**. Wave Link Stream is selected by default when present; pick another input, or switch
+   **Capture** to *Running applications* and tick the apps you want, in **Settings → General** (⌘,).
+2. Off air, the dashboard is a pre-flight panel: source, formats, address and jingles, each row telling you whether
+   it looks usable and taking you straight to the setting that changes it. On air it becomes the control room — a
+   rolling stereo trace of the output with peak-hold marks, uptime and listener count, the current track with its cover, and
+   the addresses to share: copy, AirDrop to your phone with the share button, open in the browser, or scan the QR
+   code.
+3. The gear slides the same window over to **Settings**; the chevron, or Escape, slides it back. Settings hold the
+   stream name and port; under **Stream** the HLS part and segment lengths (shorter = lower latency, more
+   requests), which formats to produce (HLS, AAC, MP3, FLAC, PCM) and the list of bitrates; recording; and under
+   **Internet** the tunnel and password. Changes apply on the next start; while live, the dashboard offers a
+   one-click restart.
+4. Right-click the menu bar icon for start/stop and a jingle without opening the window.
 
 | Give this to… | URL |
 |---|---|
