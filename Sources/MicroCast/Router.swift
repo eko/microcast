@@ -36,6 +36,7 @@ final class Router {
 	private let lastLive: Date?
 	private let hlsListeners = ListenerTracker()
 	private let name: String
+	private let titlePatternBox: OSAllocatedUnfairLock<String>
 	private let partDuration: Double
 	private let password: String
 	private let publicURL: OSAllocatedUnfairLock<URL?>
@@ -57,6 +58,7 @@ final class Router {
 		live: Bool = true,
 		lastLive: Date? = nil,
 		name: String,
+		titlePattern: String = "",
 		partDuration: Double,
 		password: String,
 		publicURL: OSAllocatedUnfairLock<URL?>
@@ -74,6 +76,7 @@ final class Router {
 		self.live = live
 		self.lastLive = lastLive
 		self.name = name
+		self.titlePatternBox = OSAllocatedUnfairLock(initialState: titlePattern)
 		self.partDuration = partDuration
 		self.password = password
 		self.publicURL = publicURL
@@ -166,9 +169,9 @@ final class Router {
 		if let (bitrate, format) = Self.progressive(path: request.path) {
 			switch format {
 			case "aac":
-				if let stream = aac[bitrate] { return .stream(stream.broadcaster.subscribe(), type: "audio/aac", headers: icyHeaders(bitrate)) }
+				if let stream = aac[bitrate] { return icyResponse(stream.broadcaster, type: "audio/aac", bitrate: bitrate, request: request) }
 			case "mp3":
-				if let stream = mp3[bitrate] { return .stream(stream.broadcaster.subscribe(), type: "audio/mpeg", headers: icyHeaders(bitrate)) }
+				if let stream = mp3[bitrate] { return icyResponse(stream.broadcaster, type: "audio/mpeg", bitrate: bitrate, request: request) }
 			default:
 				break
 			}
@@ -176,15 +179,52 @@ final class Router {
 		return .text(404, "not found")
 	}
 
-	/// Shoutcast-style headers: VLC, mpv and foobar2000 show icy-name as the stream title.
+	/// Shoutcast-style headers: VLC, mpv and foobar2000 show icy-name as the station name.
 	private var icyHeaders: [String: String] {
 		["icy-name": name.replacingOccurrences(of: "\n", with: " "), "icy-pub": "0"]
 	}
 
-	private func icyHeaders(_ bitrate: Int) -> [String: String] {
+	/// The live "now playing" string from the pattern and the current track.
+	func currentTitle() -> String {
+		TitleTemplate.render(titlePatternBox.withLock { $0 }, name: name, track: nowPlaying?.current)
+	}
+
+	/// Applies a new title pattern without restarting the stream; the next ICY block and status.json use it.
+	func setTitlePattern(_ pattern: String) {
+		titlePatternBox.withLock { $0 = pattern }
+	}
+
+	/// A direct-stream response; when the client sent `Icy-MetaData: 1`, splices in the live title.
+	private func icyResponse(_ broadcaster: Broadcaster, type: String, bitrate: Int, request: HTTPRequest) -> HTTPResponse {
 		var headers = icyHeaders
 		headers["icy-br"] = String(bitrate)
-		return headers
+		if request.headers["icy-metadata"] == "1" {
+			headers["icy-metaint"] = String(ICY.metaInterval)
+			return .stream(icyInterleaved(broadcaster.subscribe()), type: type, headers: headers)
+		}
+		// VLC never sends Icy-MetaData; answering Shoutcast-style makes it retry with its ICY-aware access.
+		// Only over plain HTTP: that access has no TLS support, so an ICY reply over HTTPS breaks playback.
+		if !request.isSecure, ICY.needsShoutcastReply(userAgent: request.headers["user-agent"]) {
+			headers["icy-metaint"] = String(ICY.metaInterval)
+			var response = HTTPResponse.stream(icyInterleaved(broadcaster.subscribe()), type: type, headers: headers)
+			response.statusLine = ICY.shoutcastStatusLine
+			return response
+		}
+		return .stream(broadcaster.subscribe(), type: type, headers: headers)
+	}
+
+	/// Wraps a stream so metadata blocks are inserted at ICY.metaInterval boundaries with the current title.
+	private func icyInterleaved(_ source: AsyncStream<Data>) -> AsyncStream<Data> {
+		AsyncStream { continuation in
+			let task = Task { [weak self] in
+				var interleaver = ICYInterleaver()
+				for await chunk in source {
+					continuation.yield(interleaver.process(chunk, title: self?.currentTitle() ?? ""))
+				}
+				continuation.finish()
+			}
+			continuation.onTermination = { _ in task.cancel() }
+		}
 	}
 
 	/// HTTP Basic: any user name, the configured password.
@@ -293,6 +333,7 @@ final class Router {
 		if let url = publicURL.withLock({ $0 }) { status["publicURL"] = url.absoluteString }
 		if let lastLive { status["lastLive"] = lastLive.timeIntervalSince1970.rounded() }
 		if let track = nowPlaying?.current { status["nowPlaying"] = track.json }
+		status["streamTitle"] = currentTitle()
 		return (try? JSONSerialization.data(withJSONObject: status)) ?? Data("{}".utf8)
 	}
 }

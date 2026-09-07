@@ -111,6 +111,7 @@ struct GeneralSettings: View {
 	@AppStorage("port") private var port = 8080
 	@AppStorage("autoStart") private var autoStart = false
 	@AppStorage("nowPlayingEnabled") private var nowPlayingEnabled = true
+	@AppStorage("titlePattern") private var titlePattern = ""
 	@State private var devices = AudioDevices.inputs()
 	@State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 	@State private var loginError = ""
@@ -163,12 +164,11 @@ struct GeneralSettings: View {
 				TextField("Port", value: $port, format: .number.grouping(.never))
 				Toggle("Show the current track from Music or Spotify", isOn: $nowPlayingEnabled)
 					.disabled(sourceMode == "apps")
+				TextField("Now-playing title", text: $titlePattern, prompt: Text(TitleTemplate.defaultPattern))
 			} header: {
 				Text("Stream")
 			} footer: {
-				Text(sourceMode == "apps"
-					? "The name is shown on the page and sent to players as the stream title. When capturing applications, the track is shown whenever Music or Spotify is among them. \(applyNote)"
-					: "The name is shown on the page and sent to players as the stream title. The track is shown while Music or Spotify is playing; turn it off when the input carries something else. \(applyNote)")
+				Text("The title uses %name%, %artist%, %title% and %album%; with nothing playing it shows just the name. VLC, mpv and foobar2000 show it live on the AAC and MP3 streams and it drives the page tab. HLS players show only the fixed name. \(applyNote)")
 			}
 			Section("Startup") {
 				Toggle("Start streaming when MicroCast launches", isOn: $autoStart)
@@ -187,7 +187,7 @@ struct GeneralSettings: View {
 	}
 
 	private var generalHeight: CGFloat {
-		var height: CGFloat = 566
+		var height: CGFloat = 612
 		if sourceMode == "apps" {
 			height += 90 + (allApps ? 0 : CGFloat(max(1, apps.count)) * 30)
 			if !mixInput { height -= 46 }
@@ -246,6 +246,8 @@ struct StreamSettings: View {
 	@AppStorage("enableMP3") private var mp3Enabled = true
 	@AppStorage("enableFLAC") private var flacEnabled = true
 	@AppStorage("enablePCM") private var pcmEnabled = true
+	@AppStorage("soundPreset") private var soundPreset = AudioProcessor.Preset.off.rawValue
+	@AppStorage("burstSeconds") private var burstSeconds = 2.0
 
 	var body: some View {
 		Form {
@@ -267,6 +269,29 @@ struct StreamSettings: View {
 				Text("Low-Latency HLS")
 			} footer: {
 				Text("Shorter parts lower the latency and multiply requests; 334 ms is a good default on Wi-Fi, 500 ms or more through a tunnel. \(applyNote)")
+			}
+			Section {
+				Picker("Loudness", selection: $soundPreset) {
+					ForEach(AudioProcessor.Preset.allCases) { preset in
+						Text(preset.label).tag(preset.rawValue)
+					}
+				}
+			} header: {
+				Text("Sound")
+			} footer: {
+				Text((AudioProcessor.Preset(rawValue: soundPreset) ?? .off).summary + " Radio stations compress and limit their audio, which is why they sound louder and fuller than a raw capture. Applies immediately, no restart.")
+			}
+			Section {
+				Picker("Instant start", selection: $burstSeconds) {
+					Text("Off — always live").tag(0.0)
+					Text("1 second").tag(1.0)
+					Text("2 seconds").tag(2.0)
+					Text("4 seconds").tag(4.0)
+				}
+			} header: {
+				Text("Start-up")
+			} footer: {
+				Text("Sends this much already-encoded audio the moment a player connects, so VLC and friends start immediately instead of buffering for a second. That listener then runs this far behind live. It applies to the AAC, MP3 and FLAC streams only — the page's HLS and ultra-low-latency modes are untouched. Applies immediately.")
 			}
 			Section {
 				Toggle("Low-Latency HLS", isOn: $hlsEnabled)
@@ -296,7 +321,7 @@ struct StreamSettings: View {
 			}
 		}
 		.formStyle(.grouped)
-		.frame(height: bitratesText.isEmpty ? 680 : 710)
+		.frame(height: bitratesText.isEmpty ? 980 : 1010)
 	}
 }
 

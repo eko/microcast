@@ -8,6 +8,8 @@ struct HTTPRequest {
 	let query: [String: String]
 	let headers: [String: String]
 	var remoteAddress = ""
+	/// True when this connection is served by the TLS listener.
+	var isSecure = false
 }
 
 enum HTTPBody {
@@ -17,6 +19,8 @@ enum HTTPBody {
 
 struct HTTPResponse {
 	var status = 200
+	/// Replaces the whole status line; used for the Shoutcast "ICY 200 OK" reply.
+	var statusLine: String?
 	var contentType = "text/plain; charset=utf-8"
 	var headers: [String: String] = [:]
 	var body = HTTPBody.data(Data())
@@ -46,6 +50,7 @@ final class HTTPServer {
 
 	private let listener: NWListener
 	private let handler: Handler
+	private let isSecure: Bool
 	private let queue = DispatchQueue(label: "local.microcast.http")
 	private let logger = Logger(subsystem: "local.microcast", category: "http")
 	private let connections = OSAllocatedUnfairLock(initialState: 0)
@@ -69,6 +74,7 @@ final class HTTPServer {
 		parameters.allowLocalEndpointReuse = true
 		listener = try NWListener(using: parameters, on: port)
 		if let serviceName { listener.service = NWListener.Service(name: serviceName, type: "_http._tcp") }
+		self.isSecure = identity != nil
 		self.handler = handler
 	}
 
@@ -114,6 +120,7 @@ final class HTTPServer {
 		var buffer = Data()
 		while var request = await readRequest(on: connection, buffer: &buffer) {
 			request.remoteAddress = remoteAddress
+			request.isSecure = isSecure
 			let response = await handler(request)
 			let keepAlive = request.headers["connection"]?.lowercased() != "close"
 			do {
@@ -197,7 +204,7 @@ final class HTTPServer {
 		case .stream:
 			headers["Connection"] = "close"
 		}
-		var head = "HTTP/1.1 \(response.status) \(Self.reason(for: response.status))\r\n"
+		var head = (response.statusLine ?? "HTTP/1.1 \(response.status) \(Self.reason(for: response.status))") + "\r\n"
 		for (name, value) in headers.sorted(by: { $0.key < $1.key }) {
 			head += "\(name): \(value)\r\n"
 		}

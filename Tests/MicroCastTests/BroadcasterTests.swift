@@ -20,6 +20,31 @@ final class BroadcasterTests: XCTestCase {
 		XCTAssertEqual(broadcaster.clientCount, 0)
 	}
 
+	func testBurstGivesNewListenersTheRecentAudioImmediately() async {
+		let broadcaster = Broadcaster()
+		broadcaster.preamble = Data("HEAD".utf8)
+		broadcaster.burstLimit = 6
+		for byte in UInt8(1)...UInt8(10) { broadcaster.publish(Data([byte])) }
+		let stream = broadcaster.subscribe()
+		broadcaster.publish(Data([99]))
+		broadcaster.closeAll()
+		var received = Data()
+		for await chunk in stream { received.append(chunk) }
+		XCTAssertEqual(received.prefix(4), Data("HEAD".utf8), "header first")
+		XCTAssertEqual(Array(received.dropFirst(4)), [5, 6, 7, 8, 9, 10, 99], "the last 6 bytes of history, then live audio")
+	}
+
+	func testBurstDisabledSendsOnlyLiveAudio() async {
+		let broadcaster = Broadcaster()
+		for byte in UInt8(1)...UInt8(5) { broadcaster.publish(Data([byte])) }
+		let stream = broadcaster.subscribe()
+		broadcaster.publish(Data([42]))
+		broadcaster.closeAll()
+		var received = Data()
+		for await chunk in stream { received.append(chunk) }
+		XCTAssertEqual(Array(received), [42], "no history when burst is off")
+	}
+
 	func testSlowSubscriberLosesOldestChunks() async {
 		let broadcaster = Broadcaster()
 		let stream = broadcaster.subscribe()

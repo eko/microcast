@@ -124,6 +124,7 @@ All in `UserDefaults` under `local.microcast`:
 | `recordFolder` | ~/Music/MicroCast | |
 | `autoStart` | false | start streaming when the app launches |
 | `keepOnline` | true | keep the address up between streams and serve the off-air page (also goes online at launch) |
+| `titlePattern` | %name% — %artist% - %title% | now-playing title for ICY metadata, the page tab and status.json |
 | `nowPlayingEnabled` | true | in input mode, show the Music/Spotify track; in app-capture mode it follows the captured apps |
 | `lastLive` | | when the last stream ended, for the off-air page |
 | `screenEnabled`, `screenDisplayID`, `screenX/Y/Width/Height`, `screenFPS`, `screenMaxWidth`, `screenQuality` | off, main display, whole display, 12 fps, 1280 px, 0.7 | screen region streaming as MJPEG |

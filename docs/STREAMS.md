@@ -15,8 +15,8 @@ any user name, e.g. `http://x:secret@host:8080/stream.flac`.
 | `/hls/{br}/init.mp4` | `audio/mp4` | fMP4 init segment, title in `moov/udta/©nam` |
 | `/hls/{br}/seg{N}.m4s` | `audio/mp4` | full segment (waits until complete) |
 | `/hls/{br}/seg{N}.{P}.m4s` | `audio/mp4` | partial segment (waits until produced) |
-| `/stream-{bitrate}.aac` | `audio/aac` | ADTS frames, `icy-name`, `icy-br` |
-| `/stream-{bitrate}.mp3` | `audio/mpeg` | needs `lame`; ID3v2 `TIT2` first, `icy-name` |
+| `/stream-{bitrate}.aac` | `audio/aac` | ADTS frames, `icy-name`, `icy-br`; sends live ICY `StreamTitle` when the client requests `Icy-MetaData: 1` |
+| `/stream-{bitrate}.mp3` | `audio/mpeg` | needs `lame`; ID3v2 `TIT2` first, `icy-name`; live ICY `StreamTitle` on `Icy-MetaData: 1` |
 | `/stream.flac` | `audio/flac` | `fLaC` + STREAMINFO + VORBIS_COMMENT `TITLE`, then frames |
 | `/screen.mjpeg` | `multipart/x-mixed-replace` | the selected screen region as a stream of JPEG frames; plays in an `<img>` |
 | `/screen.jpg` | `image/jpeg` | the latest screen frame (poster/fallback) |
@@ -85,6 +85,16 @@ Through Cloudflare, direct streams are delivered in 128 KiB blocks (16 s of audi
 or ngrok, which streams in real time. See [TUNNELS.md](TUNNELS.md).
 
 ## Metadata
+
+**Now playing.** With a title pattern (Settings → General, e.g. `%name% - Now playing: %artist% - %title%`), the
+AAC and MP3 streams carry the formatted title as ICY in-stream metadata: a client that connects with
+`Icy-MetaData: 1` gets `icy-metaint` and a `StreamTitle='…'` block that updates as the track changes. VLC, mpv
+and foobar2000 show and refresh it live. VLC 3's default HTTP access never sends `Icy-MetaData`, so **over plain HTTP** the server answers VLC with the
+Shoutcast status line `ICY 200 OK`, which makes VLC retry with its ICY-aware access and display the title.
+That access has no TLS support, so **over HTTPS** VLC gets a standard HTTP reply and plays without a title
+(an `ICY 200 OK` over TLS makes VLC fail to open the stream entirely). Players that send `Icy-MetaData: 1`
+(mpv, foobar2000) get the title over HTTPS too, and browsers always get plain HTTP with no metadata. It is also in `/status.json` as `streamTitle` and drives the page's
+browser-tab title. HLS has no live-title tag, so HLS players still show only the fixed name.
 
 The stream name (Settings → General) is placed everywhere a client might look: page title, `icy-name`, ID3 `TIT2` on
 MP3, `TITLE` on FLAC, `EXT-X-SESSION-DATA` and `EXTINF` titles in HLS, and `©nam` in the fMP4 init segment. No

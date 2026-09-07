@@ -38,8 +38,8 @@ enum TestRouter {
 		)
 	}
 
-	static func request(_ path: String, method: String = "GET", query: [String: String] = [:], headers: [String: String] = [:], from address: String = "10.0.0.1") -> HTTPRequest {
-		HTTPRequest(method: method, path: path, query: query, headers: headers, remoteAddress: address)
+	static func request(_ path: String, method: String = "GET", query: [String: String] = [:], headers: [String: String] = [:], from address: String = "10.0.0.1", secure: Bool = false) -> HTTPRequest {
+		HTTPRequest(method: method, path: path, query: query, headers: headers, remoteAddress: address, isSecure: secure)
 	}
 }
 

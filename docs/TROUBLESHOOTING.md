@@ -59,6 +59,13 @@ jingle at the change instead.
 Settings → Privacy & Security → Screen Recording → MicroCast). The `<img>` streams MJPEG, which is bandwidth
 heavy: over a tunnel, lower the frame rate, max width and quality. It carries no audio and is not synced.
 
+**No now-playing title in my player** — browsers, Safari and QuickTime never show ICY metadata; open the stream in
+VLC (Window → Media Information, ⌘I), mpv (`mpv <url>` prints `icy-title`) or foobar2000. MicroCast sends the
+title to clients that request it (`Icy-MetaData: 1`) and, for VLC over plain HTTP — whose default access never asks — replies
+Shoutcast-style (`ICY 200 OK`) so VLC switches to its ICY-aware access and shows the title. Over HTTPS VLC shows
+no title (its ICY access has no TLS); use mpv, foobar2000, the LAN HTTP URL, or the page. Verify with
+`curl -s -H "Icy-MetaData: 1" "<url>" | strings | grep StreamTitle`.
+
 **No jingle plays** — jingles need the Now Playing detection (Music or Spotify playing and selected as the
 source), files in the folder shown in Settings → Jingles, and a track change; "Play one now" tests the chain
 while live. A jingle already playing is not interrupted by the next change.

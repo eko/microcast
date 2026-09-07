@@ -151,6 +151,7 @@ final class AudioMixer {
 	var output: (CMSampleBuffer, Data) -> Void = { _, _ in }
 	private let lock = NSLock()
 	private var mixer = DuckingMixer()
+	private var processor = AudioProcessor()
 	private var pendingJingle: [Float]?
 	private var formatDescription: CMAudioFormatDescription?
 	private var framesDelivered: Int64 = 0
@@ -171,6 +172,11 @@ final class AudioMixer {
 			mixer.duckGain = Float(pow(10, duckDecibels / 20))
 			mixer.jingleGain = Float(jingleVolume)
 		}
+	}
+
+	/// Broadcast loudness processing applied to the final mix, jingles included.
+	func setProcessing(_ preset: AudioProcessor.Preset) {
+		lock.withLock { processor.setPreset(preset) }
 	}
 
 	/// Queues a jingle; it starts on the next buffer. Ignored while one is already playing.
@@ -194,6 +200,9 @@ final class AudioMixer {
 			}
 			if mixer.isActive {
 				data.withUnsafeMutableBytes { raw in mixer.process(raw.bindMemory(to: Int16.self)) }
+			}
+			if processor.isActive {
+				data.withUnsafeMutableBytes { raw in processor.process(raw.bindMemory(to: Int16.self)) }
 			}
 		}
 		guard let sampleBuffer = makeSampleBuffer(data) else { return }

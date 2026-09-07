@@ -1,0 +1,9 @@
+# One sweeper per line:  filename | duration in seconds | prompt for the sound generator
+# These are the transitions between songs. Keep them short: a sweeper that outstays
+# its welcome is worse than no sweeper.
+01-riser        | 3 | Radio imaging riser sweep, white noise rising in pitch and volume, building tension, clean studio transition effect, no music
+02-whoosh-down  | 2 | Radio imaging downward whoosh transition, air swoosh falling in pitch, punchy, clean studio effect, no music
+03-transition   | 2 | Fast radio station transition sweep, filtered noise swoosh with a bright tail, energetic FM imaging effect, no music
+04-impact       | 3 | Deep cinematic impact hit with a short reverb tail, radio imaging stinger, punchy sub bass boom, no music
+05-zap          | 2 | Retro radio imaging laser zap sweep, electronic descending zap, classic FM station effect, no music
+06-reverse      | 2 | Reverse cymbal swell rising into a soft impact, radio imaging transition, clean, no music

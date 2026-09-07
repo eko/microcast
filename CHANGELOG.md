@@ -18,6 +18,10 @@ First public release. 64 unit and integration tests; CI builds and releases the 
 - Menu bar panel with stereo meters, uptime, listener count, QR code and share sheet; Settings window (⌘,).
 - Bonjour advertisement, listener count and history graph (panel and page), launch at login, auto-start.
 - Off-air page: the address stays online between streams and the page starts playing by itself when you go live.
+- Switch the input device or captured applications live, without restarting the stream.
+- The now-playing title and jingle settings apply live without restarting the stream.
+- The now-playing title now shows in VLC over plain HTTP (Shoutcast `ICY 200 OK` reply, VLC only, never over TLS; browsers keep clean HTTP audio).
+- Now-playing title pattern (%name%/%artist%/%title%/%album%) sent as live ICY StreamTitle on the AAC and MP3 streams (VLC, mpv, foobar2000) and shown in the browser tab.
 - Now playing: the track from Music or Spotify, with artwork, on the page, the phone lock screen and the panel.
 - Screen streaming: capture a display or region with ScreenCaptureKit and serve it as MJPEG on the page, with cinema mode and full screen.
 - Jingles: a folder of audio files played over the ducked music at track changes or on demand, with adjustable duck level, volume and a lead time so the jingle starts before the end of the track.

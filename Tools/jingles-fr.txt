@@ -1,0 +1,6 @@
+# One jingle per line:  filename | voice (M = deep male, F = warm female) | spoken text
+# Text may carry Eleven v3 performance tags such as [confident]; a default is
+# applied per voice when it has none. Edit freely, then run Tools/make-jingles.sh.
+01-avalanche       | M | Echo Trois. Une avalanche de musique dans vos oreilles !
+02-vingt-quatre    | M | Écoutez-nous sur Internet, vingt-quatre heures sur vingt-quatre ! Echo Trois !
+03-votre-radio     | F | Echo... Trois. Votre musique, votre radio.

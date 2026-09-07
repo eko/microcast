@@ -26,6 +26,8 @@ connection that can carry 1.5 Mbit/s, and hi-fi players get plain AAC, MP3 or lo
   partial segments, blocking reloads and preload hints. About 1.3 s in hls.js on a LAN.
 - **Direct streams** for real players: AAC, MP3, FLAC (lossless) and raw PCM, with `icy-name`, ID3 and Vorbis
   tags so the stream name shows up in VLC, mpv or foobar2000.
+- **Now-playing title**: a pattern like `%name% - Now playing: %artist% - %title%`, shown live as the ICY
+  `StreamTitle` in VLC, mpv and foobar2000, and in the browser tab.
 - **A player page** served by the app: hls.js, quality selector, live latency and level, an ultra-low-latency
   PCM mode (~0.2 s, uncompressed), direct links, a listener graph, the track playing in Music or Spotify with
   its artwork, light and dark, lock-screen controls and Add-to-Home-Screen on phones.

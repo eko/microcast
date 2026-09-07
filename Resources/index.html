@@ -319,6 +319,7 @@ if (!window.Hls) {
   const ago = (t) => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? 'a moment ago' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
   function showNowPlaying(s) {
     const np = s.nowPlaying;
+    if (np && s.streamTitle) document.title = s.streamTitle;
     const key = np ? `${np.title}|${np.artist}|${np.artwork || ''}` : '';
     if (key === npKey) return;
     npKey = key;

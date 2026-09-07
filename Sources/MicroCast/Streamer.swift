@@ -13,16 +13,34 @@ enum Settings {
 	static var selectedApps: [String] {
 		(UserDefaults.standard.string(forKey: "selectedApps") ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
 	}
+	/// Everything that defines the capture source; a change swaps the capture without a restart.
+	static var sourceSignature: String {
+		[sourceMode, deviceUID, "\(allApps)", "\(mixInput)", selectedApps.sorted().joined(separator: ",")].joined(separator: "\u{1f}")
+	}
 	static var autoStart: Bool { UserDefaults.standard.bool(forKey: "autoStart") }
 	/// Keep the address (servers, tunnel, HTTPS) up between streams and serve the off-air page.
 	static var keepOnline: Bool { isEnabled("keepOnline") }
 	static var nowPlayingEnabled: Bool { isEnabled("nowPlayingEnabled") }
+	static var titlePattern: String { UserDefaults.standard.string(forKey: "titlePattern") ?? "" }
+	/// Seconds of audio sent immediately to a new direct-stream listener so playback starts at once.
+	static var burstSeconds: Double {
+		guard let value = UserDefaults.standard.object(forKey: "burstSeconds") as? Double else { return 2 }
+		return min(6, max(0, value))
+	}
+
+	static var soundPreset: AudioProcessor.Preset {
+		AudioProcessor.Preset(rawValue: UserDefaults.standard.string(forKey: "soundPreset") ?? "") ?? .off
+	}
 	static var jinglesEnabled: Bool { UserDefaults.standard.bool(forKey: "jinglesEnabled") }
 	static var screenEnabled: Bool { UserDefaults.standard.bool(forKey: "screenEnabled") }
 	static var screenDisplayID: CGDirectDisplayID { CGDirectDisplayID(UserDefaults.standard.integer(forKey: "screenDisplayID")) }
 	static var screenFPS: Int { let v = UserDefaults.standard.integer(forKey: "screenFPS"); return v > 0 ? v : 12 }
 	static var screenMaxWidth: Int { let v = UserDefaults.standard.integer(forKey: "screenMaxWidth"); return v > 0 ? v : 1280 }
 	static var screenQuality: Double { let v = UserDefaults.standard.double(forKey: "screenQuality"); return v > 0 ? v : 0.7 }
+	static var screenX: Int { UserDefaults.standard.integer(forKey: "screenX") }
+	static var screenY: Int { UserDefaults.standard.integer(forKey: "screenY") }
+	static var screenWidth: Int { UserDefaults.standard.integer(forKey: "screenWidth") }
+	static var screenHeight: Int { UserDefaults.standard.integer(forKey: "screenHeight") }
 	static var screenRegion: ScreenRegion {
 		ScreenRegion(
 			x: UserDefaults.standard.integer(forKey: "screenX"), y: UserDefaults.standard.integer(forKey: "screenY"),
@@ -56,26 +74,24 @@ enum Settings {
 
 	/// Everything a running stream depends on, to tell when a restart is needed.
 	struct Snapshot: Equatable {
-		let deviceUID, streamName, password, tunnelProvider, cloudflareToken, cloudflareHostname, customTunnelCommand, recordFormat: String
+		let streamName, password, tunnelProvider, cloudflareToken, cloudflareHostname, customTunnelCommand, recordFormat: String
 		let recordFolder: URL
 		let port: UInt16
 		let partDuration, segmentDuration: Double
 		let bitrates: [Int]
 		let formats: [Bool]
-		let sourceMode: String
-		let allApps, mixInput: Bool
-		let selectedApps: [String]
 		let duck: [String]
+		let screen: [String]
 	}
 
 	static var snapshot: Snapshot {
 		Snapshot(
-			deviceUID: deviceUID, streamName: streamName, password: password, tunnelProvider: tunnelProvider,
+			streamName: streamName, password: password, tunnelProvider: tunnelProvider,
 			cloudflareToken: cloudflareToken, cloudflareHostname: cloudflareHostname, customTunnelCommand: customTunnelCommand,
 			recordFormat: recordFormat, recordFolder: recordFolder, port: port, partDuration: partDuration, segmentDuration: segmentDuration,
 			bitrates: bitrates, formats: [hlsEnabled, aacEnabled, mp3Enabled, flacEnabled, pcmEnabled],
-			sourceMode: sourceMode, allApps: allApps, mixInput: mixInput, selectedApps: selectedApps,
-			duck: [duckSubdomain, duckToken, duckHostname, ownHostname, acmeEmail, "\(duckPublicPort)", "\(httpsPort)", "\(httpsEnabled)"]
+			duck: [duckSubdomain, duckToken, duckHostname, ownHostname, acmeEmail, "\(duckPublicPort)", "\(httpsPort)", "\(httpsEnabled)"],
+			screen: ["\(screenEnabled)", "\(screenDisplayID)", "\(screenX)", "\(screenY)", "\(screenWidth)", "\(screenHeight)", "\(screenFPS)", "\(screenMaxWidth)", "\(screenQuality)"]
 		)
 	}
 
@@ -210,6 +226,11 @@ final class Streamer {
 	private var sampler: Timer?
 	private var history = ListenerHistory()
 	private var activeSnapshot: Settings.Snapshot?
+	private var appliedSoftSignature = ""
+	private var activeSourceSignature = ""
+	private var pendingSourceSignature: String?
+	private var pendingSourceSince = Date.distantPast
+	private var switchingSource = false
 	private let logger = Logger(subsystem: "local.microcast", category: "streamer")
 
 	var permissionDenied: Bool {
@@ -517,29 +538,14 @@ final class Streamer {
 			pcm?.append(samples)
 		}
 		mixer.configure(duckDecibels: Settings.jingleDuckDecibels, jingleVolume: Settings.jingleVolume)
-		let mixer = mixer
-		let sink: (Data) -> Void = { samples in mixer.append(samples) }
+		mixer.setProcessing(Settings.soundPreset)
+		applyBurst()
 		jingleCount = JingleBank(folder: Settings.jingleFolder).files.count
 		lastTrackID = nil
-		let capture: AudioSource
-		let sourceName: String
-		if Settings.sourceMode == "apps" {
-			let running = AudioApp.running()
-			let selected = running.filter { Settings.selectedApps.contains($0.id) }
-			guard Settings.allApps || !selected.isEmpty else { throw TapError.noSelection }
-			capture = try TapCapture(
-				target: Settings.allApps ? .all : .apps(selected),
-				mixInputDeviceUID: Settings.mixInput ? device.uniqueID : nil,
-				sink: sink
-			)
-			var parts = Settings.allApps ? ["All applications"] : selected.map(\.name)
-			if Settings.mixInput { parts.append(device.localizedName) }
-			sourceName = parts.joined(separator: " + ")
-		} else {
-			capture = try AudioCapture(device: device, sink: sink)
-			sourceName = device.localizedName
-		}
+		_ = device
+		let (capture, sourceName) = try makeCapture()
 		self.capture = capture
+		activeSourceSignature = Settings.sourceSignature
 
 		history = ListenerHistory()
 		listenerSamples = []
@@ -552,11 +558,12 @@ final class Streamer {
 		screenCapture = screen as? ScreenCapture
 		routes.current = Router(
 			hls: hls, aac: aac, mp3: mp3, flac: flac, pcm: pcm, bitrates: bitrates, history: history, challenges: challenges,
-			nowPlaying: nowPlayingMonitor, screen: screen, name: name, partDuration: partDuration,
+			nowPlaying: nowPlayingMonitor, screen: screen, name: name, titlePattern: Settings.titlePattern, partDuration: partDuration,
 			password: Settings.password, publicURL: publicURL
 		)
 		_ = port
-		nowPlayingMonitor.interval = Settings.jinglesEnabled ? 1 : 3
+		nowPlayingMonitor.setInterval(Settings.jinglesEnabled ? 1 : 3)
+		appliedSoftSignature = ""
 		nowPlayingMonitor.start()
 		startRecording(name: name)
 		startScreenCapture()
@@ -687,6 +694,56 @@ final class Streamer {
 	/// Screen capture is optional and independent of the audio source; served as MJPEG at /screen.mjpeg.
 	private var demoScreen: DemoScreenSource?
 
+	/// Builds the audio capture from the current source settings, feeding the shared mixer. Used at launch and
+	/// for a live source switch.
+	private func makeCapture() throws -> (AudioSource, String) {
+		let device = AudioDevices.device(uid: Settings.deviceUID) ?? AudioDevices.preferredInput()
+		let mixer = self.mixer
+		let sink: (Data) -> Void = { mixer.append($0) }
+		if Settings.sourceMode == "apps" {
+			let selected = AudioApp.running().filter { Settings.selectedApps.contains($0.id) }
+			guard Settings.allApps || !selected.isEmpty else { throw TapError.noSelection }
+			let capture = try TapCapture(
+				target: Settings.allApps ? .all : .apps(selected),
+				mixInputDeviceUID: Settings.mixInput ? device?.uniqueID : nil,
+				sink: sink
+			)
+			var parts = Settings.allApps ? ["All applications"] : selected.map(\.name)
+			if Settings.mixInput, let device { parts.append(device.localizedName) }
+			return (capture, parts.joined(separator: " + "))
+		}
+		guard let device else { throw CaptureError.deviceUnavailable }
+		return (try AudioCapture(device: device, sink: sink), device.localizedName)
+	}
+
+	/// Swaps the capture for the current source settings without touching the encoders, servers or listeners.
+	/// A brief silence covers the new capture warming up.
+	private func switchSource() async {
+		guard isRunning, !switchingSource else { return }
+		switchingSource = true
+		defer { switchingSource = false }
+		let capturingApps = Settings.sourceMode == "apps"
+		if !capturingApps || Settings.mixInput {
+			guard await AVCaptureDevice.requestAccess(for: .audio) else { fail("Microphone access denied"); return }
+		}
+		if capturingApps {
+			guard await SystemAudioPermission.request() else { fail("System audio recording denied"); return }
+		}
+		do {
+			let (newCapture, name) = try makeCapture()
+			capture?.stop()
+			capture = newCapture
+			newCapture.start()
+			deviceName = name
+			statusMessage = "Streaming \(name)"
+			failure = nil
+			logger.info("switched source to \(name, privacy: .public)")
+		} catch {
+			fail("Could not switch source: \(error.localizedDescription)")
+			logger.error("switch source: \(error.localizedDescription)")
+		}
+	}
+
 	private func makeScreenCapture() -> ScreenSource? {
 		if UserDefaults.standard.bool(forKey: "screenDemo") {
 			let demo = DemoScreenSource(); demo.start(); demoScreen = demo; return demo
@@ -710,6 +767,15 @@ final class Streamer {
 				logger.error("screen: \(error.localizedDescription)")
 			}
 		}
+	}
+
+	/// Direct streams get a start-up burst; the page's PCM mode never does, it exists to be instant and live.
+	private func applyBurst() {
+		let seconds = Settings.burstSeconds
+		for (bitrate, stream) in aac { stream.broadcaster.burstLimit = Int(seconds * Double(bitrate) * 125) }
+		for (bitrate, stream) in mp3 { stream.broadcaster.burstLimit = Int(seconds * Double(bitrate) * 125) }
+		flac?.broadcaster.burstLimit = Int(seconds * 130_000)
+		pcm?.broadcaster.burstLimit = 0
 	}
 
 	private func startRecording(name: String) {
@@ -753,6 +819,43 @@ final class Streamer {
 		listeners = router?.listenerCount ?? 0
 		recordingBytes = recorder?.bytesWritten ?? 0
 		settingsChanged = activeSnapshot.map { $0 != Settings.snapshot } ?? false
+		applyLiveSettings()
+		considerSourceSwitch()
+	}
+
+	/// Settings that take effect immediately while streaming: the now-playing title and the jingle behaviour.
+	/// The hard settings (device, encoders, ports, tunnel, screen) still need a restart, offered by the banner.
+	private func applyLiveSettings() {
+		guard isRunning else { return }
+		let signature = [
+			Settings.titlePattern, "\(Settings.jinglesEnabled)", Settings.jingleFolder.path,
+			"\(Settings.jingleDuckDecibels)", "\(Settings.jingleVolume)", "\(Settings.nowPlayingEnabled)",
+			Settings.soundPreset.rawValue, "\(Settings.burstSeconds)",
+		].joined(separator: "\u{1f}")
+		guard signature != appliedSoftSignature else { return }
+		appliedSoftSignature = signature
+		router?.setTitlePattern(Settings.titlePattern)
+		mixer.configure(duckDecibels: Settings.jingleDuckDecibels, jingleVolume: Settings.jingleVolume)
+		mixer.setProcessing(Settings.soundPreset)
+		applyBurst()
+		nowPlayingMonitor.setInterval(Settings.jinglesEnabled ? 1 : 3)
+		jingleCount = JingleBank(folder: Settings.jingleFolder).files.count
+		logger.info("applied live settings")
+	}
+
+	/// Debounced so toggling several app checkboxes settles into one switch.
+	private func considerSourceSwitch() {
+		guard isRunning, !switchingSource else { return }
+		let signature = Settings.sourceSignature
+		guard signature != activeSourceSignature else { pendingSourceSignature = nil; return }
+		if pendingSourceSignature != signature {
+			pendingSourceSignature = signature
+			pendingSourceSince = Date()
+		} else if Date().timeIntervalSince(pendingSourceSince) > 0.6 {
+			pendingSourceSignature = nil
+			activeSourceSignature = signature
+			Task { await switchSource() }
+		}
 	}
 
 	/// localhost, the Bonjour host name, then every IPv4 address of this Mac.

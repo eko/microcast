@@ -38,7 +38,7 @@ final class NowPlayingMonitor {
 	/// Every poll while a track plays: its id, the position in seconds and the duration in seconds.
 	var onProgress: (_ trackID: String, _ position: Double, _ duration: Double) -> Void = { _, _, _ in }
 	/// Seconds between polls; one second when jingles must land close to a track change.
-	var interval: Double = 3
+	private(set) var interval: Double = 3
 
 	var current: NowPlaying? { state.withLock { $0.current } }
 
@@ -69,6 +69,14 @@ final class NowPlayingMonitor {
 		timer?.cancel()
 		timer = nil
 		update(nil)
+	}
+
+	/// Changes the poll cadence on the fly (jingles want a tighter interval).
+	func setInterval(_ seconds: Double) {
+		guard seconds != interval else { return }
+		interval = seconds
+		guard timer != nil else { return }
+		timer?.schedule(deadline: .now() + seconds, repeating: seconds)
 	}
 
 	private func poll() {
