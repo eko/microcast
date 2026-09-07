@@ -236,6 +236,32 @@ final class AudioMixer {
 	}
 }
 
+/// Which track boundaries carry a jingle when the station plays one every few tracks.
+///
+/// A boundary is offered to two paths: the one scheduled before the end of the track, and the
+/// catch-up at the track change. The verdict is therefore memoised per track, so that asking
+/// twice about the same boundary neither advances the count nor lets one path play a jingle
+/// the other has already decided to skip.
+struct JingleRotation {
+	private var sinceLast = 0
+	private var decided: (track: String, play: Bool)?
+
+	/// True when a jingle belongs at the end of `track`. `interval` of 1 plays at every change.
+	mutating func shouldPlay(endingTrack track: String, every interval: Int) -> Bool {
+		if let decided, decided.track == track { return decided.play }
+		sinceLast += 1
+		let play = sinceLast >= max(1, interval)
+		if play { sinceLast = 0 }
+		decided = (track, play)
+		return play
+	}
+
+	mutating func reset() {
+		sinceLast = 0
+		decided = nil
+	}
+}
+
 /// When to fire a jingle so it starts `lead` seconds before the end of the track, given polls every `interval`.
 enum JingleScheduler {
 	/// Seconds to wait before starting, or nil when the moment is still more than a poll away.

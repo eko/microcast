@@ -24,6 +24,37 @@ final class JingleTests: XCTestCase {
 		XCTAssertEqual(JingleScheduler.delay(remaining: 1.5, lead: 2, interval: 1), 0, "already past the point: now")
 	}
 
+	func testRotationPlaysEveryTrackByDefault() {
+		var rotation = JingleRotation()
+		for track in ["a", "b", "c"] {
+			XCTAssertTrue(rotation.shouldPlay(endingTrack: track, every: 1))
+		}
+	}
+
+	func testRotationRestsBetweenJingles() {
+		var rotation = JingleRotation()
+		let played = (1...9).map { rotation.shouldPlay(endingTrack: "t\($0)", every: 3) }
+		XCTAssertEqual(played, [false, false, true, false, false, true, false, false, true])
+	}
+
+	func testRotationMemoisesItsVerdictPerTrack() {
+		var rotation = JingleRotation()
+		// Both trigger paths ask about the same boundary; the second must not advance the count.
+		XCTAssertFalse(rotation.shouldPlay(endingTrack: "a", every: 2))
+		XCTAssertFalse(rotation.shouldPlay(endingTrack: "a", every: 2), "same boundary, same answer")
+		XCTAssertTrue(rotation.shouldPlay(endingTrack: "b", every: 2))
+		XCTAssertTrue(rotation.shouldPlay(endingTrack: "b", every: 2), "still the same boundary")
+		XCTAssertFalse(rotation.shouldPlay(endingTrack: "c", every: 2), "counting resumed after the jingle")
+	}
+
+	func testRotationResetsAndClampsTheInterval() {
+		var rotation = JingleRotation()
+		XCTAssertFalse(rotation.shouldPlay(endingTrack: "a", every: 4))
+		rotation.reset()
+		XCTAssertFalse(rotation.shouldPlay(endingTrack: "b", every: 4), "the count starts over")
+		XCTAssertTrue(rotation.shouldPlay(endingTrack: "c", every: 0), "an interval below 1 means every track")
+	}
+
 	func testProgressParsingHandlesSpotifyMilliseconds() {
 		let music = NowPlayingMonitor.parseProgress("T\nA\nAl\nid\n12.5\n200.25\n", source: "Music")
 		XCTAssertEqual(music?.position, 12.5)

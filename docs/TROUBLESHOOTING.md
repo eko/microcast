@@ -67,7 +67,8 @@ no title (its ICY access has no TLS); use mpv, foobar2000, the LAN HTTP URL, or 
 `curl -s -H "Icy-MetaData: 1" "<url>" | strings | grep StreamTitle`.
 
 **No jingle plays** — jingles need the Now Playing detection (Music or Spotify playing and selected as the
-source), files in the folder shown in Settings → Jingles, and a track change; "Play one now" tests the chain
+source), files in the folder shown in Settings → Jingles, and a track change that the rotation does not rest on
+(check "Frequency": at every 5 tracks, four changes out of five are silent by design); "Play one now" tests the chain
 while live. A jingle already playing is not interrupted by the next change.
 
 **hls.js keeps choosing 64 kbps in Auto** — ABR estimates bandwidth from tiny audio parts and gets it wrong on a

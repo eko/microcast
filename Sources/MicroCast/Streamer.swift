@@ -52,6 +52,12 @@ enum Settings {
 		guard let value = UserDefaults.standard.object(forKey: "jingleDuckDecibels") as? Double else { return -12 }
 		return min(0, max(-30, value))
 	}
+	/// Tracks between jingles; 1 plays one at every change.
+	static var jingleEveryTracks: Int {
+		let value = UserDefaults.standard.integer(forKey: "jingleEveryTracks")
+		return min(50, max(1, value == 0 ? 1 : value))
+	}
+
 	/// Seconds before the end of the track at which the jingle starts; 0 means at the change.
 	static var jingleLeadSeconds: Double {
 		let value = UserDefaults.standard.object(forKey: "jingleLeadSeconds") as? Double
@@ -213,6 +219,8 @@ final class Streamer {
 	private var jingledTrackID: String?
 	private var lastPosition: Double = 0
 	private var scheduledJingle: DispatchWorkItem?
+	private var jingleRotation = JingleRotation()
+	private var appliedJingleEvery = 0
 	private var recorder: Recorder?
 	private var server: HTTPServer?
 	private var httpsServer: HTTPServer?
@@ -271,6 +279,10 @@ final class Streamer {
 		// Played ahead of this change already; a still-pending one means the switch came early: play it now.
 		guard pending || jingledTrackID != previous else { return }
 		jingledTrackID = previous
+		guard pending || jingleRotation.shouldPlay(endingTrack: previous, every: Settings.jingleEveryTracks) else {
+			logger.info("skipping the jingle: this boundary is a rest in the rotation")
+			return
+		}
 		playJingle()
 	}
 
@@ -281,6 +293,10 @@ final class Streamer {
 		lastPosition = position
 		guard Settings.jinglesEnabled, isRunning, lead > 0, jingledTrackID != trackID, scheduledJingle == nil else { return }
 		guard let delay = JingleScheduler.delay(remaining: duration - position, lead: lead, interval: nowPlayingMonitor.interval) else { return }
+		guard jingleRotation.shouldPlay(endingTrack: trackID, every: Settings.jingleEveryTracks) else {
+			jingledTrackID = trackID // a rest in the rotation: keep the change path from firing it either
+			return
+		}
 		let work = DispatchWorkItem { [weak self] in
 			Task { @MainActor in
 				guard let self, self.scheduledJingle != nil else { return }
@@ -470,6 +486,7 @@ final class Streamer {
 		scheduledJingle?.cancel()
 		scheduledJingle = nil
 		jingledTrackID = nil
+		jingleRotation.reset()
 		capture?.stop()
 		capture = nil
 		if isRunning {
@@ -541,6 +558,10 @@ final class Streamer {
 		mixer.setProcessing(Settings.soundPreset)
 		applyBurst()
 		jingleCount = JingleBank(folder: Settings.jingleFolder).files.count
+		if appliedJingleEvery != Settings.jingleEveryTracks {
+			appliedJingleEvery = Settings.jingleEveryTracks
+			jingleRotation.reset()
+		}
 		lastTrackID = nil
 		_ = device
 		let (capture, sourceName) = try makeCapture()
@@ -830,6 +851,7 @@ final class Streamer {
 		let signature = [
 			Settings.titlePattern, "\(Settings.jinglesEnabled)", Settings.jingleFolder.path,
 			"\(Settings.jingleDuckDecibels)", "\(Settings.jingleVolume)", "\(Settings.nowPlayingEnabled)",
+			"\(Settings.jingleEveryTracks)",
 			Settings.soundPreset.rawValue, "\(Settings.burstSeconds)",
 		].joined(separator: "\u{1f}")
 		guard signature != appliedSoftSignature else { return }

@@ -527,12 +527,22 @@ struct JingleSettings: View {
 	@AppStorage("jingleDuckDecibels") private var duck = -12.0
 	@AppStorage("jingleVolume") private var volume = 1.0
 	@AppStorage("jingleLeadSeconds") private var lead = 2.0
+	@AppStorage("jingleEveryTracks") private var everyTracks = 1
 	@State private var files: [URL] = []
 
 	var body: some View {
 		Form {
 			Section {
 				Toggle("Play a jingle when the track changes in Music or Spotify", isOn: $jinglesEnabled)
+				LabeledContent("Frequency") {
+					HStack {
+						Stepper(value: $everyTracks, in: 1...50) {
+							Text(everyTracks == 1 ? "Every track" : "Every \(everyTracks) tracks")
+								.foregroundStyle(.secondary)
+						}
+					}
+				}
+				.disabled(!jinglesEnabled)
 				LabeledContent("Folder") {
 					HStack {
 						Text((Settings.jingleFolder.path as NSString).abbreviatingWithTildeInPath)
@@ -572,7 +582,7 @@ struct JingleSettings: View {
 			} header: {
 				Text("Jingles")
 			} footer: {
-				Text("Drop MP3, AAC, WAV, AIFF or FLAC files in the folder. One is picked at random at each track change, never the same twice in a row. Works with the Now Playing detection, so only when Music or Spotify is what you stream.")
+				Text("Drop MP3, AAC, WAV, AIFF or FLAC files in the folder. One is picked at random at the chosen interval, never the same twice in a row. Works with the Now Playing detection, so only when Music or Spotify is what you stream.")
 			}
 			Section {
 				LabeledContent("Start") {
