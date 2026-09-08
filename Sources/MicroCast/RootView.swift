@@ -7,7 +7,7 @@ import SwiftUI
 /// drawn here because the window's own is hidden, which is what lets the header carry the stream's
 /// state instead of a filename.
 struct RootView: View {
-	enum Route { case dashboard, settings }
+	enum Route: Equatable { case dashboard, settings }
 
 	var streamer: Streamer
 	@Environment(\.colorScheme) private var scheme
@@ -40,6 +40,17 @@ struct RootView: View {
 		.frame(minWidth: 480, idealWidth: 520, minHeight: 560, idealHeight: 680)
 		.onChange(of: streamer.isRunning, initial: true) { _, running in
 			AppDelegate.shared?.setRunning(running)
+		}
+		.onAppear {
+			AppDelegate.shared?.onShortcut = { shortcut in
+				switch shortcut {
+				case .settings: route = .settings
+				case .back: route = .dashboard
+				case .toggleStream:
+					guard route == .dashboard, !streamer.isStarting, !streamer.permissionDenied else { return }
+					if streamer.isRunning { streamer.stop() } else { Task { await streamer.start() } }
+				}
+			}
 		}
 	}
 

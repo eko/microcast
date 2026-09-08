@@ -18,6 +18,11 @@ enum Settings {
 		[sourceMode, deviceUID, "\(allApps)", "\(mixInput)", selectedApps.sorted().joined(separator: ",")].joined(separator: "\u{1f}")
 	}
 	static var autoStart: Bool { UserDefaults.standard.bool(forKey: "autoStart") }
+	/// The Dock icon follows the window unless this is off, and then there is never one.
+	static var showInDock: Bool { isEnabled("showInDock") }
+	static var menuBarIcon: MenuBarIcon {
+		MenuBarIcon(rawValue: UserDefaults.standard.string(forKey: "menuBarIcon") ?? "") ?? .radio
+	}
 	/// Keep the address (servers, tunnel, HTTPS) up between streams and serve the off-air page.
 	static var keepOnline: Bool { isEnabled("keepOnline") }
 	static var nowPlayingEnabled: Bool { isEnabled("nowPlayingEnabled") }

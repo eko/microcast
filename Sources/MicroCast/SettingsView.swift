@@ -122,6 +122,8 @@ struct GeneralSettings: View {
 	@AppStorage("streamName") private var streamName = ""
 	@AppStorage("port") private var port = 8080
 	@AppStorage("autoStart") private var autoStart = false
+	@AppStorage("menuBarIcon") private var menuBarIcon = MenuBarIcon.radio.rawValue
+	@AppStorage("showInDock") private var showInDock = true
 	@AppStorage("nowPlayingEnabled") private var nowPlayingEnabled = true
 	@AppStorage("titlePattern") private var titlePattern = ""
 	@State private var devices = AudioDevices.inputs()
@@ -181,6 +183,32 @@ struct GeneralSettings: View {
 				Text("Stream")
 			} footer: {
 				Text("The title uses %name%, %artist%, %title% and %album%; with nothing playing it shows just the name. VLC, mpv and foobar2000 show it live on the AAC and MP3 streams and it drives the page tab. HLS players show only the fixed name. \(applyNote)")
+			}
+			Section("Appearance") {
+				LabeledContent("Menu bar icon") {
+					// All five at once rather than behind a menu: this is a choice about how
+					// something looks, so the options should be visible, not named.
+					HStack(spacing: 6) {
+						ForEach(MenuBarIcon.allCases) { icon in
+							let selected = menuBarIcon == icon.rawValue
+							Button { menuBarIcon = icon.rawValue } label: {
+								// The very image the status item will use, so the row previews the
+								// real thing rather than an approximation of it.
+								Image(nsImage: icon.image(live: false) ?? NSImage())
+									.renderingMode(.template)
+									.font(.system(size: 14))
+									.foregroundStyle(selected ? Color.accentColor : Color.muted)
+									.frame(width: 38, height: 26)
+									.background(
+										selected ? Color.accentColor.opacity(0.20) : Color.primary.opacity(0.06),
+										in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+							}
+							.buttonStyle(.plain)
+							.help(icon.label)
+						}
+					}
+				}
+				Toggle("Show an icon in the Dock", isOn: $showInDock)
 			}
 			Section("Startup") {
 				Toggle("Start streaming when MicroCast launches", isOn: $autoStart)
