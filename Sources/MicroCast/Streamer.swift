@@ -38,6 +38,8 @@ enum Settings {
 	}
 	static var jinglesEnabled: Bool { UserDefaults.standard.bool(forKey: "jinglesEnabled") }
 	static var screenEnabled: Bool { UserDefaults.standard.bool(forKey: "screenEnabled") }
+	/// "vu" (a pair of analogue meters) or "wave" (the scrolling stereo trace); hidden, for now.
+	static var meterStyle: String { UserDefaults.standard.string(forKey: "meterStyle") ?? "vu" }
 	static var screenDisplayID: CGDirectDisplayID { CGDirectDisplayID(UserDefaults.standard.integer(forKey: "screenDisplayID")) }
 	static var screenFPS: Int { let v = UserDefaults.standard.integer(forKey: "screenFPS"); return v > 0 ? v : 12 }
 	static var screenMaxWidth: Int { let v = UserDefaults.standard.integer(forKey: "screenMaxWidth"); return v > 0 ? v : 1280 }
@@ -188,6 +190,9 @@ final class Streamer {
 	private(set) var levelRight: Float = 0
 	private(set) var peakLeft: Float = 0
 	private(set) var peakRight: Float = 0
+	/// Every meter reading, for the trace: left, right, peak left, peak right. Set by the view
+	/// that draws it, so the readings bypass the view graph.
+	var meterSink: ((Float, Float, Float, Float) -> Void)?
 	/// True while live when a setting differs from the one the stream started with.
 	private(set) var settingsChanged = false
 	private(set) var listeners = 0
@@ -266,6 +271,12 @@ final class Streamer {
 		nowPlayingMonitor.onChange = { [weak self] track in Task { @MainActor in self?.trackDidChange(track) } }
 		nowPlayingMonitor.onProgress = { [weak self] trackID, position, duration in
 			Task { @MainActor in self?.trackDidProgress(trackID, position: position, duration: duration) }
+		}
+		// A hidden switch for screenshots and UI work: the on-air panel with moving meters and
+		// no capture, encoders or servers behind it.
+		if UserDefaults.standard.bool(forKey: "uiPreview") {
+			loadPreview()
+			startPreviewMeters()
 		}
 		if Settings.keepOnline || Settings.autoStart {
 			Task {
@@ -388,6 +399,30 @@ final class Streamer {
 		let shape = [0, 1, 1, 2, 3, 3, 5, 6, 6, 8, 10, 9, 11, 13, 12, 14, 16, 15, 17, 16, 15, 14, 13, 12]
 		listenerSamples = shape.enumerated().map { index, count in
 			ListenerHistory.Sample(time: now.addingTimeInterval(Double(index - shape.count) * 10), count: count)
+		}
+	}
+
+	/// Synthetic levels while `uiPreview` is set: a beat on a slow swell, so the trace moves the
+	/// way music does without a capture running. Uses the meter timer, so Stop clears it too.
+	private func startPreviewMeters() {
+		let start = Date()
+		meter = Timer.scheduledTimer(withTimeInterval: LevelTrace.interval, repeats: true) { [weak self] _ in
+			Task { @MainActor in
+				guard let self else { return }
+				let time = Date().timeIntervalSince(start)
+				let swell = 0.06 + 0.05 * sin(time * 0.9)
+				let phase = time.truncatingRemainder(dividingBy: 0.5)
+				let beat = 0.45 * (phase < 0.05 ? phase / 0.05 : exp(-(phase - 0.05) * 4.5))
+				let wobble = 1 + 0.12 * sin(time * 3.1)
+				let jitter = Double.random(in: -0.02...0.02)
+				let left = Float(min(1, max(0, swell + beat * wobble + jitter)))
+				let right = Float(min(1, max(0, swell + beat * (2 - wobble) * 0.9 - jitter)))
+				self.levelLeft = left
+				self.levelRight = right
+				self.peakLeft = max(left, self.peakLeft - 0.015)
+				self.peakRight = max(right, self.peakRight - 0.015)
+				self.meterSink?(left, right, self.peakLeft, self.peakRight)
+			}
 		}
 	}
 
@@ -610,7 +645,7 @@ final class Streamer {
 		pageURLs = Self.pageURLs(port: port)
 		statusMessage = "Streaming \(sourceName)"
 		logger.info("streaming \(sourceName) on port \(port)")
-		meter = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+		meter = Timer.scheduledTimer(withTimeInterval: LevelTrace.interval, repeats: true) { [weak self] _ in
 			Task { @MainActor in self?.refreshLevels() }
 		}
 		// Everything that is not a needle does not need twenty updates a second, and each one
@@ -855,6 +890,7 @@ final class Streamer {
 		levelRight = levels.right
 		peakLeft = max(levels.left, peakLeft - 0.015)
 		peakRight = max(levels.right, peakRight - 0.015)
+		meterSink?(levelLeft, levelRight, peakLeft, peakRight)
 	}
 
 	/// Counters and settings, once a second.

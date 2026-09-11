@@ -17,7 +17,6 @@ struct RootView: View {
 
 	var body: some View {
 		ZStack {
-			VisualEffect()
 			AmbientBackground(live: streamer.isRunning)
 
 			VStack(spacing: 0) {
@@ -28,12 +27,12 @@ struct RootView: View {
 		}
 		// A hairline along the top edge, the way a physical panel catches the light. Without the
 		// traffic lights there is nothing else up there to give the window an edge. A lit line
-		// only reads against a dark ground, so on white it becomes a shadow instead.
+		// only reads against a dark ground, so on white it becomes a shadow instead. A plain fill
+		// rather than a blend mode, which would have the compositor draw the group off screen.
 		.overlay(alignment: .top) {
 			Rectangle()
 				.fill(scheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.07))
 				.frame(height: 1)
-				.blendMode(scheme == .dark ? .plusLighter : .normal)
 				.allowsHitTesting(false)
 		}
 		.ignoresSafeArea()

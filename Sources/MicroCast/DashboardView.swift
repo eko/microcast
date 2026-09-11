@@ -425,24 +425,20 @@ struct DashboardView: View {
 
 /// The needles, split out on purpose.
 ///
-/// The level updates twenty times a second. Read from the dashboard's own body, that invalidated
-/// every card, chart and image on screen twenty times a second; read from here, it invalidates
-/// this view alone.
+/// The meters take their readings straight from the streamer and move in Core Animation between
+/// them, so nothing here is re-evaluated twenty times a second; this view only follows whether
+/// the stream is out, for the colour. `meterStyle` = "wave" swaps the VU pair for the waveform.
 private struct LiveMeters: View {
 	var streamer: Streamer
-	@State private var trace = LevelTrace()
 
 	var body: some View {
-		StereoTrace(
-			frames: trace.frames, head: trace.head,
-			peakLeft: streamer.peakLeft, peakRight: streamer.peakRight,
-			live: streamer.isRunning
-		)
-		.frame(height: 78)
-		.onChange(of: streamer.levelLeft) { _, _ in
-			trace.push(left: streamer.levelLeft, right: streamer.levelRight)
+		if Settings.meterStyle == "wave" {
+			SignalTrace(streamer: streamer, live: streamer.isRunning)
+				.frame(height: 78)
+		} else {
+			VUMeters(streamer: streamer, live: streamer.isRunning)
+				.frame(height: 112)
 		}
-		.onDisappear { trace.clear() }
 	}
 }
 

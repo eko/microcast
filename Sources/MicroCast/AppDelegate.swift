@@ -178,7 +178,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 		window.titlebarAppearsTransparent = true
 		window.titleVisibility = .hidden
 		window.isMovableByWindowBackground = true
-		window.backgroundColor = .clear
+		// Opaque on purpose: a see-through window has the compositor re-blend everything beneath
+		// it whenever anything there moves, and the ambient field covers every pixel anyway.
+		window.isOpaque = true
+		window.backgroundColor = .windowBackgroundColor
 		window.minSize = NSSize(width: 480, height: 520)
 		// No traffic lights: the status item opens and puts the window away, and ⌘W still works
 		// because the window stays closable — the buttons are hidden, not removed from the mask.

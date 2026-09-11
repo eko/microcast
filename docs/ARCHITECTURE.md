@@ -48,7 +48,7 @@ flowchart LR
 | `DashboardView` | `DashboardView.swift` | The main screen, and two of them really: on air it shows the stereo trace, vitals, current track with its cover, listeners chart and addresses; off air the meters have nothing to show, so it becomes a pre-flight panel — source, formats, address and jingles, each row saying whether it looks usable and opening the settings tab that changes it. |
 | `SettingsView` | `SettingsView.swift` | The Settings window (⌘,): General, Stream, Internet, Recording, About. |
 | `Screenshot` | `Screenshot.swift` | Draws the window into a PNG on a distributed notification, for `Tools/shoot.sh`. Renders the view rather than capturing the display, so documentation images need no Screen Recording permission. |
-| `Components` | `Components.swift` | `StereoTrace` (the single sound picture: scrolling level for both channels plus peak-hold marks), `BroadcastButton`, `AmbientBackground`, `Card`, `PreflightRow`, `CopyButton`, `Banner`, QR generation. |
+| `Components` | `Components.swift` | `VUMeters` (a pair of analogue VU meters driven by Core Animation ballistics), `SignalTrace` (the alternative: a glowing stereo waveform gliding right to left, `meterStyle` = "wave"), `BroadcastButton`, `AmbientBackground`, `Card`, `PreflightRow`, `CopyButton`, `Banner`, QR generation. |
 
 ## Threads and queues
 

@@ -33,10 +33,12 @@ from the interface they advertise:
 
 ```sh
 defaults write local.microcast demoAddresses -bool true   # example.com instead of your own host
+defaults write local.microcast uiPreview -bool true      # on-air panel with moving meters, no capture or servers
 Tools/shoot.sh docs/images/offair.png                     # then press Start, and:
 Tools/shoot.sh docs/images/onair.png
 swift Tools/make-hero.swift docs/images/hero.png docs/images
 defaults delete local.microcast demoAddresses
+defaults delete local.microcast uiPreview
 ```
 
 `shoot.sh` asks the app to draw its own window into a PNG. It renders the view hierarchy rather
